@@ -74,6 +74,10 @@ class HypothesisConfig(BaseModel):
     def validate_limits(self) -> "HypothesisConfig":
         if self.evolve_top_k > self.keep_diverse_limit:
             raise ValueError("evolve_top_k cannot exceed keep_diverse_limit")
+        if self.min_gap_status in {GapStatus.CANDIDATE, GapStatus.DISPROVED}:
+            raise ValueError("min_gap_status must be survived, weakened, or uncertain")
+        if self.min_gap_status == GapStatus.UNCERTAIN and not self.allow_uncertain_gaps:
+            raise ValueError("allow_uncertain_gaps must be true when min_gap_status is uncertain")
         return self
 
 
