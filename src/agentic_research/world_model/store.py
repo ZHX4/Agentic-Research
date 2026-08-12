@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 import struct
 from pathlib import Path
@@ -194,8 +195,8 @@ class ScientificWorldModel:
     def lexical_search(self, query: str, *, limit: int, filters: dict[str, object] | None = None) -> list[sqlite3.Row]:
         if limit < 1:
             raise ValueError("limit must be positive")
-        import re
-        tokens = re.findall(r"[A-Za-z0-9][A-Za-z0-9_+-]{1,63}", query.lower())
+        tokens = re.findall(r"[\w][\w+\-.]{0,63}", query.casefold(), flags=re.UNICODE)
+        tokens = [token.replace('"', "") for token in tokens if token.replace('"', "")]
         if not tokens:
             return []
         fts_query = " OR ".join(f'"{token}"' for token in tokens)
@@ -269,13 +270,15 @@ class ScientificWorldModel:
                 target_id = edge.cited_reference_id
             self.upsert_edge(WorldEdge(edge_id=edge.edge_id, source_id=paper_node_id, target_id=target_id, edge_type="cites", payload={"confidence": edge.confidence, "marker": edge.marker, "context_chunk_id": edge.citation_context_chunk_id}))
         for author in paper.authors:
-            normalized = " ".join(author.lower().split()); digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:20]
+            normalized = " ".join(author.lower().split())
+            digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:20]
             node_id = f"author:{digest}"
             self.upsert_node(WorldNode(node_id=node_id, node_type="author", paper_id=None, label=author, payload={"normalized": normalized}))
-            self.upsert_edge(WorldEdge(edge_id=f"authored_by:{paper.paper_id}:{node_id}", source_id=paper_node_id, target_id=node_id, edge_type="authored_by"))
+            self.upsert_edge(WorldEdge(edge_id=f"authored-by:{paper.paper_id}:{node_id}", source_id=paper_node_id, target_id=node_id, edge_type="authored_by"))
         for field, node_type, edge_type in (("methods", "method", "has_method"), ("datasets", "dataset", "has_dataset"), ("metrics", "metric", "has_metric"), ("baselines", "baseline", "has_baseline"), ("tasks", "task", "has_task")):
             for value in getattr(paper, field):
-                normalized = " ".join(value.lower().split()); digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:20]
+                normalized = " ".join(value.lower().split())
+                digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:20]
                 node_id = f"{node_type}:{digest}"
                 self.upsert_node(WorldNode(node_id=node_id, node_type=node_type, paper_id=None, label=value, payload={"normalized": normalized}))
                 self.upsert_edge(WorldEdge(edge_id=f"{edge_type}:{paper.paper_id}:{node_id}", source_id=paper_node_id, target_id=node_id, edge_type=edge_type))
