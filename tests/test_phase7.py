@@ -8,15 +8,7 @@ from agentic_research.execution.runner import evaluate_falsification
 from agentic_research.execution.sandbox import DockerSandboxExecutor, SandboxViolation
 from agentic_research.execution.tree import append_result, create_tree
 from agentic_research.schemas.phase6 import Hypothesis
-from agentic_research.schemas.phase7 import (
-    ArtifactRecord,
-    DatasetManifest,
-    ExperimentResult,
-    FalsificationPlan,
-    MetricRecord,
-    SandboxPolicy,
-    SeedRun,
-)
+from agentic_research.schemas.phase7 import ArtifactRecord, DatasetManifest, ExperimentResult, ExperimentSpec, FalsificationPlan, MetricRecord, SandboxPolicy, SeedRun
 
 
 def make_hypothesis() -> Hypothesis:
@@ -45,31 +37,20 @@ def make_hypothesis() -> Hypothesis:
 def test_experiment_plan_is_deterministic(tmp_path: Path) -> None:
     code = tmp_path / "run.py"
     code.write_text("print('ok')", encoding="utf-8")
-    dataset = DatasetManifest(
-        dataset_id="d1",
-        name="Demo",
-        version="1",
-        source="local",
-        sha256=hashlib.sha256(b"dataset").hexdigest(),
-        immutable=True,
-    )
+    dataset = DatasetManifest(dataset_id="d1", name="Demo", version="1", source="local", sha256=hashlib.sha256(b"dataset").hexdigest(), immutable=True)
     a = build_experiment_spec(make_hypothesis(), code_path=code, command=["python", "run.py"], datasets=[dataset], primary_metric="accuracy", seeds=[3, 1, 2])
     b = build_experiment_spec(make_hypothesis(), code_path=code, command=["python", "run.py"], datasets=[dataset], primary_metric="accuracy", seeds=[1, 2, 3])
     assert a.experiment_id == b.experiment_id
     assert a.code_sha256 == sha256_file(code)
+    assert a.code_path == "run.py"
     assert a.seeds == [1, 2, 3]
 
 
-def test_experiment_rejects_duplicate_seed() -> None:
+def test_experiment_rejects_duplicate_seed(tmp_path: Path) -> None:
+    code = tmp_path / "run.py"
+    code.write_text("print('ok')", encoding="utf-8")
     with pytest.raises(ValueError):
-        build_experiment_spec(
-            make_hypothesis(),
-            code_path=Path(__file__),
-            command=["python", "x.py"],
-            datasets=[],
-            primary_metric="accuracy",
-            seeds=[1, 1],
-        )
+        build_experiment_spec(make_hypothesis(), code_path=code, command=["python", "run.py"], datasets=[], primary_metric="accuracy", seeds=[1, 1])
 
 
 def test_sandbox_policy_defaults_to_safe_execution() -> None:
@@ -83,24 +64,19 @@ def test_sandbox_rejects_forbidden_docker_flags() -> None:
     executor = DockerSandboxExecutor()
     with pytest.raises(SandboxViolation):
         executor._validate_command(["--privileged"])
+    with pytest.raises(SandboxViolation):
+        executor._validate_command(["-v", "/host:/container"])
 
 
 def test_falsification_uses_explicit_threshold() -> None:
     hypothesis = make_hypothesis()
-    plan = FalsificationPlan(
-        plan_id="f1",
-        hypothesis_id=hypothesis.hypothesis_id,
-        primary_metric="accuracy",
-        null_hypothesis="no improvement",
-        rejection_criteria=["accuracy below threshold"],
-        minimum_effect_size=0.8,
-    )
-    from agentic_research.schemas.phase7 import ExperimentSpec
+    plan = FalsificationPlan(plan_id="f1", hypothesis_id=hypothesis.hypothesis_id, primary_metric="accuracy", null_hypothesis="no improvement", rejection_criteria=["accuracy below threshold"], minimum_effect_size=0.8)
     spec = ExperimentSpec(
         experiment_id="e1",
         hypothesis_id=hypothesis.hypothesis_id,
         research_question=hypothesis.research_question,
         command=["python", "run.py"],
+        code_path="run.py",
         code_sha256=hashlib.sha256(b"code").hexdigest(),
         datasets=[],
         metrics=["accuracy"],
@@ -117,24 +93,35 @@ def test_falsification_uses_explicit_threshold() -> None:
     assert rationale
 
 
+def test_experiment_spec_rejects_path_escape() -> None:
+    with pytest.raises(ValueError):
+        ExperimentSpec(
+            experiment_id="e",
+            hypothesis_id="h",
+            research_question="q",
+            command=["python", "x"],
+            code_path="../run.py",
+            code_sha256=hashlib.sha256(b"x").hexdigest(),
+            datasets=[],
+            metrics=["m"],
+            seeds=[1],
+            falsification=FalsificationPlan(plan_id="f", hypothesis_id="h", primary_metric="m", null_hypothesis="n", rejection_criteria=["r"]),
+            sandbox=SandboxPolicy(image="python:3.11-slim"),
+        )
+
+
 def test_experiment_tree_integrity() -> None:
-    from agentic_research.schemas.phase7 import ExperimentSpec
     spec = ExperimentSpec(
         experiment_id="e1",
         hypothesis_id="hyp-1",
         research_question="question",
         command=["python", "run.py"],
+        code_path="run.py",
         code_sha256=hashlib.sha256(b"code").hexdigest(),
         datasets=[],
         metrics=["accuracy"],
         seeds=[1],
-        falsification=FalsificationPlan(
-            plan_id="f1",
-            hypothesis_id="hyp-1",
-            primary_metric="accuracy",
-            null_hypothesis="none",
-            rejection_criteria=["fail"],
-        ),
+        falsification=FalsificationPlan(plan_id="f1", hypothesis_id="hyp-1", primary_metric="accuracy", null_hypothesis="none", rejection_criteria=["fail"]),
         sandbox=SandboxPolicy(image="python:3.11-slim"),
     )
     tree = create_tree(spec)
