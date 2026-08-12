@@ -1,4 +1,4 @@
-"""OpenAlex works search adapter."""
+"""OpenAlex Works search adapter."""
 
 from __future__ import annotations
 
@@ -53,7 +53,8 @@ class OpenAlexAdapter(LiteratureRetriever):
                 "cursor": cursor,
                 "select": (
                     "id,doi,title,display_name,publication_year,publication_date,"
-                    "authorships,primary_location,open_access,type,cited_by_count,relevance_score"
+                    "authorships,primary_location,open_access,type,cited_by_count,relevance_score,"
+                    "abstract_inverted_index"
                 ),
             }
             filters: list[str] = []
@@ -74,7 +75,9 @@ class OpenAlexAdapter(LiteratureRetriever):
             raw_results = payload.get("results", [])
             for raw in raw_results:
                 paper = _paper_from_openalex(raw)
-                if paper.year is not None and query.temporal_cutoff is not None and paper.year > query.temporal_cutoff:
+                if query.temporal_cutoff is not None and (
+                    paper.year is None or paper.year > query.temporal_cutoff
+                ):
                     continue
                 results.append(
                     SearchHit(
@@ -90,6 +93,22 @@ class OpenAlexAdapter(LiteratureRetriever):
             if not raw_results:
                 break
         return results
+
+
+def _decode_inverted_index(index: object) -> str | None:
+    if not isinstance(index, dict):
+        return None
+    tokens: list[tuple[int, str]] = []
+    for token, positions in index.items():
+        if not isinstance(token, str) or not isinstance(positions, list):
+            continue
+        for position in positions:
+            if isinstance(position, int) and position >= 0:
+                tokens.append((position, token))
+    if not tokens:
+        return None
+    tokens.sort(key=lambda item: item[0])
+    return " ".join(token for _, token in tokens)
 
 
 def _paper_from_openalex(raw: dict[str, Any]) -> Paper:
@@ -113,6 +132,7 @@ def _paper_from_openalex(raw: dict[str, Any]) -> Paper:
     return Paper(
         paper_id=source_key,
         title=str(raw.get("display_name") or raw.get("title") or "").strip(),
+        abstract=_decode_inverted_index(raw.get("abstract_inverted_index")),
         year=raw.get("publication_year"),
         doi=normalize_doi(raw.get("doi")),
         url=landing_page,
