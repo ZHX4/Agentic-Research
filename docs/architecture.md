@@ -50,6 +50,16 @@ Phase 4
       -> Cross-domain signals
       -> Graph negative-space signals
       -> Candidate Gap objects with provenance
+
+Phase 5
+  Phase 4 candidates
+      -> Devil's Advocate
+      -> Deterministic query expansion
+      -> Local + external literature search
+      -> Prior-work comparison
+      -> Counterevidence registry
+      -> Coverage assessment
+      -> Conservative novelty verdict
 ```
 
 ## Target architecture
@@ -86,9 +96,12 @@ ResearchGoal
 - Confidence is raw until calibrated against labeled examples.
 - Missing retrieval results never constitute proof of novelty.
 - Phase 4 gap detection is corpus-relative structural discovery, never novelty verification.
-- Phase 4 candidates must retain actual world-model node IDs and supporting paper IDs.
+- Phase 4 candidates retain supporting paper IDs and canonical world-model entity node IDs.
 - Phase 4 never changes a candidate away from `status="candidate"`.
-- Long-running state belongs in a durable run state store, not in chat history.
+- Phase 5 accepts only Phase 4 candidates.
+- Phase 5 treats failed/empty search as uncertainty, never proof of novelty.
+- `supported` in Phase 5 means “survived the configured search budget”, not globally proven novel.
+- Temporal cutoff verification excludes future and unknown-year papers.
 - Experiment execution must be isolated from the host.
 - Every major decision receives a provenance link.
 - Hybrid retrieval never combines incomparable lexical and dense raw scores; it fuses ranked lists with Reciprocal Rank Fusion.
@@ -117,6 +130,19 @@ Phase 4 reads the Phase 3 world model directly and does not mutate its scientifi
 
 The engine uses deterministic normalization and thresholds so offline runs are reproducible.
 
+## Phase 5 adversarial verification
+
+Phase 5 is deliberately separated from Phase 4. It can challenge candidates using:
+
+- the local indexed world model;
+- configured OpenAlex/Semantic Scholar/arXiv-backed literature service;
+- deterministic terminology expansions;
+- exact/near/contextual prior-work comparison;
+- counterevidence records;
+- search-coverage and uncertainty reporting.
+
+The result is an auditable `NoveltyVerificationReport`. A lack of matches cannot become a global novelty proof because the report always retains its search budget, coverage, sources, and limitations.
+
 ## Planned production storage
 
 - PostgreSQL: canonical metadata, runs, hypotheses, experiments, provenance.
@@ -132,4 +158,11 @@ The engine uses deterministic normalization and thresholds so offline runs are r
 - Recurring limitation signals are candidates; they do not prove that a limitation is unresolved globally.
 - Cross-domain detection requires explicit domain metadata.
 - Graph negative-space analysis identifies structural holes, not technical feasibility.
-- External literature search, query expansion, counterevidence search, and novelty verification begin in Phase 5.
+
+## Current Phase 5 limitations
+
+- Query expansion uses a small deterministic alias set rather than a complete ontology or LLM-generated synonym search.
+- Prior-work similarity is interpretable lexical/field overlap, not proof of semantic equivalence.
+- External search coverage depends on configured providers, rate limits, indexing, and query budgets.
+- The system cannot establish that no unpublished, inaccessible, or differently worded work exists.
+- Phase 5 does not generate hypotheses or experiments; those belong to later phases.
