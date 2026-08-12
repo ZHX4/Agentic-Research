@@ -1,0 +1,29 @@
+project:
+  name: Agentic-Research
+  version: 0.1.0
+
+research:
+  domain: "AI/ML research"
+  focus:
+    - reasoning
+    - retrieval
+    - RAG
+    - memory
+    - long-context
+    - efficiency
+    - evaluation
+    - tool-use
+
+safety:
+  novelty_requires_external_verification: true
+  require_evidence_for_claims: true
+  require_sandbox_for_generated_code: true
+  temporal_cutoff_enforced: true
+
+providers:
+  llm: mock
+  literature: local
+  embeddings: disabled
+
+storage:
+  mode: jsonl
