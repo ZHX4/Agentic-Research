@@ -82,7 +82,9 @@ class HttpClient:
                     return response
                 if attempt + 1 >= self._retry.max_attempts:
                     response.raise_for_status()
-                time.sleep(self._retry_delay(response, attempt))
+                delay = self._retry_delay(response, attempt)
+                response.close()
+                time.sleep(delay)
             except (httpx.TimeoutException, httpx.NetworkError) as exc:
                 last_error = exc
                 if attempt + 1 >= self._retry.max_attempts:
