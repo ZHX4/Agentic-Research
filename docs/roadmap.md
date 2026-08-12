@@ -1,106 +1,57 @@
 # Implementation roadmap
 
 ## Phase 0 — Foundation (implemented)
-
-- Canonical paper/evidence/gap/hypothesis/experiment schemas
-- Deterministic local JSONL ingestion
-- Candidate missing-combination detector
-- Provider-agnostic agent and retrieval contracts
-- Provenance contract
-- CLI
-- CI
-- Research methodology and architecture docs
+- [x] Canonical scientific schemas, deterministic ingestion, contracts, provenance, CLI, tests, documentation
 
 ## Phase 1 — Literature intelligence (implemented)
-
-- [x] OpenAlex adapter
-- [x] Semantic Scholar adapter
-- [x] arXiv adapter
-- [x] canonical identity + deduplication
-- [x] rate limiting and retry policy
-- [x] temporal cutoff enforcement
-- [x] full-text acquisition manifests
-- [x] PDF/HTML parsing
+- [x] OpenAlex, Semantic Scholar, arXiv adapters
+- [x] canonical identity/deduplication
+- [x] rate limiting/retry and temporal cutoff
+- [x] full-text acquisition and PDF/HTML parsing
 
 ## Phase 2 — Evidence-grounded paper intelligence (implemented)
-
-- [x] layout-aware text blocks and section hierarchy
-- [x] section-aware chunking
-- [x] table extraction
-- [x] figure/image extraction and caption detection
-- [x] structured candidate field extraction
-- [x] claim/evidence linking
-- [x] extraction confidence calibration
-- [x] citation graph ingestion
-- [x] deterministic end-to-end paper analysis
+- [x] layout/section/chunk extraction
+- [x] tables/figures/references/citations
+- [x] candidate fields, claims, evidence and calibration
+- [x] deterministic paper-analysis pipeline
 
 ## Phase 3 — Retrieval and world model (implemented)
-
-- [x] lexical retrieval
-- [x] embedding retrieval
-- [x] reranking
-- [x] citation traversal
-- [x] metadata filters
-- [x] temporal filtering
-- [x] hybrid retrieval with Reciprocal Rank Fusion
-- [x] scientific knowledge graph/world model
-- [x] model-isolated vector storage
-- [x] persistent SQLite world model
-- [x] retrieval CLI
-- [x] deterministic offline regression coverage
+- [x] lexical/dense/hybrid retrieval and reranking
+- [x] temporal/metadata filters
+- [x] persistent SQLite scientific world model and citation traversal
 
 ## Phase 4 — Gap discovery (implemented)
-
 - [x] missing combinations
 - [x] contradictions
 - [x] underexplored conditions
-- [x] unresolved limitation candidates
-- [x] cross-domain connections
-- [x] graph-based negative-space analysis
-- [x] actual world-model node provenance
-- [x] temporal cutoff
-- [x] deterministic discovery fingerprint
-- [x] configurable thresholds
-- [x] `discover-gaps` CLI
-- [x] regression coverage
-- [x] candidate-only status enforcement
+- [x] recurring limitations
+- [x] cross-domain signals
+- [x] graph negative-space signals
+- [x] candidate-only status and provenance
 
 ## Phase 5 — Adversarial novelty (implemented)
-
-- [x] Devil's Advocate agent interface
+- [x] Devil's Advocate interface
 - [x] deterministic query expansion
-- [x] fixed alternate-terminology probes
-- [x] local world-model search
-- [x] configured external scholarly search
-- [x] nearest-prior-work comparison
-- [x] direct / near / contextual classification
-- [x] counterevidence registry
-- [x] conservative novelty verdicts
-- [x] search-coverage reporting
-- [x] temporal cutoff with unknown-year exclusion
-- [x] bounded full-text verification
-- [x] PDF verification through Phase 2 intelligence
-- [x] HTML same-context verification
-- [x] deep-evidence provenance and artifact hashes
-- [x] required-deep-check safeguard
-- [x] status-transition control
-- [x] batch verification report
-- [x] dedicated verification CLI
-- [x] offline regression coverage
+- [x] local/external prior-work search
+- [x] direct/near/contextual matching
+- [x] counterevidence and coverage
+- [x] temporal integrity
+- [x] bounded PDF/HTML deep verification
+- [x] deep evidence provenance and required-check safeguard
 
-> Live GitHub Actions execution may be unavailable when the GitHub account is billing-locked. The Phase 5 acceptance gate therefore does not claim a live CI pass when GitHub did not start the job.
-
-## Phase 6 — Hypothesis reasoning
-
-- hypothesis factory
-- diversity control
-- clustering and deduplication
-- tournament ranking
-- evolution/reflection
-- Pareto ranking across novelty/significance/feasibility
+## Phase 6 — Hypothesis reasoning (implemented)
+- [x] hypothesis factory with multiple generation strategies
+- [x] evidence/status-aware scoring
+- [x] diversity filtering and clustering
+- [x] structured reflection and confounder analysis
+- [x] deterministic tournament ranking
+- [x] bounded evolution/revision
+- [x] Pareto frontier across novelty/significance/feasibility
+- [x] deterministic run artifacts with lineage/integrity checks
+- [x] dedicated hypothesis CLI
+- [x] offline regression tests
 
 ## Phase 7 — Scientific execution
-
 - experiment planner
 - falsification planning
 - Docker sandbox
@@ -110,7 +61,6 @@
 - experiment search tree
 
 ## Phase 8 — Evaluation
-
 - retrieval benchmark
 - extraction benchmark
 - gap benchmark
@@ -122,7 +72,6 @@
 - cost/compute accounting
 
 ## Phase 9 — Autonomous discovery
-
 - closed-loop research runs
 - durable state
 - experiment checkpointing
@@ -130,10 +79,11 @@
 - provenance-aware reporting
 
 ## Phase 10 — Publication
-
 - system paper
 - benchmark paper
 - validated discovery case study
 - reproducibility package
 - model/provider disclosure
 - licensing audit
+
+> Live GitHub Actions execution can be unavailable when the GitHub account is billing-locked. Phase acceptance does not claim a CI pass unless GitHub actually started the job.
