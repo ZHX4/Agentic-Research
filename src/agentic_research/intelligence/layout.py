@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import fitz
+import fitz  # type: ignore[import-untyped]
 
 from agentic_research.schemas.paper_intelligence import BoundingBox, FigureRecord, TableRecord
 
@@ -38,11 +38,10 @@ def iter_text_blocks(path: Path) -> list[TextBlock]:
             for block_index, raw in enumerate(payload.get("blocks", [])):
                 if raw.get("type") != 0:
                     continue
-                lines = raw.get("lines", [])
                 text_parts: list[str] = []
                 sizes: list[float] = []
                 bold = False
-                for line in lines:
+                for line in raw.get("lines", []):
                     for span in line.get("spans", []):
                         value = str(span.get("text", ""))
                         if value.strip():
@@ -54,9 +53,7 @@ def iter_text_blocks(path: Path) -> list[TextBlock]:
                 text = " ".join("".join(text_parts).split())
                 if not text:
                     continue
-                digest = hashlib.sha1(
-                    f"{page_index + 1}|{block_index}|{raw.get('bbox')}|{text}".encode("utf-8")
-                ).hexdigest()[:16]
+                digest = hashlib.sha1(f"{page_index + 1}|{block_index}|{raw.get('bbox')}|{text}".encode("utf-8")).hexdigest()[:16]
                 blocks.append(
                     TextBlock(
                         block_id=f"b-{digest}",
@@ -84,9 +81,7 @@ def extract_tables(path: Path, paper_id: str) -> list[TableRecord]:
                 rows = [[str(cell or "").strip() for cell in row] for row in table.extract()]
                 if not rows:
                     continue
-                digest = hashlib.sha1(
-                    f"{paper_id}|{page_index + 1}|{index}|{rows}".encode("utf-8")
-                ).hexdigest()[:16]
+                digest = hashlib.sha1(f"{paper_id}|{page_index + 1}|{index}|{rows}".encode("utf-8")).hexdigest()[:16]
                 tables.append(
                     TableRecord(
                         table_id=f"tbl-{digest}",
@@ -116,9 +111,7 @@ def extract_figures(path: Path, paper_id: str) -> list[FigureRecord]:
                 caption = _nearest_caption(text_blocks, bbox_values)
                 digest_bytes = image.get("digest")
                 digest = digest_bytes.hex() if isinstance(digest_bytes, bytes) else None
-                identity = hashlib.sha1(
-                    f"{paper_id}|{page_index + 1}|{index}|{digest}|{bbox_values}".encode("utf-8")
-                ).hexdigest()[:16]
+                identity = hashlib.sha1(f"{paper_id}|{page_index + 1}|{index}|{digest}|{bbox_values}".encode("utf-8")).hexdigest()[:16]
                 figures.append(
                     FigureRecord(
                         figure_id=f"fig-{identity}",
@@ -169,12 +162,11 @@ def _nearest_caption(blocks: list[TextBlock], image_bbox: tuple[float, float, fl
     x0, y0, x1, y1 = image_bbox
     candidates: list[tuple[float, str]] = []
     for block in blocks:
-        text = block.text
-        if not re.match(r"^(figure|fig\.)\s*\d+\b", text, flags=re.IGNORECASE):
+        if not re.match(r"^(figure|fig\.)\s*\d+\b", block.text, flags=re.IGNORECASE):
             continue
         distance = min(abs(block.bbox.y0 - y1), abs(y0 - block.bbox.y1)) + abs(block.bbox.x0 - x0) * 0.05
         if distance < 120:
-            candidates.append((distance, text))
+            candidates.append((distance, block.text))
     return min(candidates, key=lambda item: item[0])[1] if candidates else None
 
 
