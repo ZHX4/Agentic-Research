@@ -43,12 +43,24 @@ class DockerSandboxExecutor:
         return hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
 
     @staticmethod
-    def _sha256_file(path: Path) -> str:
-        digest = hashlib.sha256()
-        with path.open("rb") as handle:
-            while chunk := handle.read(1024 * 1024):
-                digest.update(chunk)
-        return digest.hexdigest()
+    def _sha256_path(path: Path) -> str:
+        if path.is_file():
+            digest = hashlib.sha256()
+            with path.open("rb") as handle:
+                while chunk := handle.read(1024 * 1024):
+                    digest.update(chunk)
+            return digest.hexdigest()
+        if path.is_dir():
+            digest = hashlib.sha256()
+            files = sorted(item for item in path.rglob("*") if item.is_file())
+            for item in files:
+                relative = item.relative_to(path).as_posix().encode("utf-8")
+                file_digest = DockerSandboxExecutor._sha256_path(item).encode("utf-8")
+                digest.update(len(relative).to_bytes(8, "big"))
+                digest.update(relative)
+                digest.update(file_digest)
+            return digest.hexdigest()
+        raise SandboxViolation(f"Dataset/code path is neither file nor directory: {path}")
 
     @staticmethod
     def _safe_name(value: str) -> str:
@@ -61,9 +73,9 @@ class DockerSandboxExecutor:
         if not code_dir.is_dir():
             raise FileNotFoundError(code_dir)
         code_path = (code_dir / spec.code_path).resolve()
-        if not code_path.is_file() or code_dir.resolve() not in code_path.parents:
+        if not code_path.exists() or code_dir.resolve() not in code_path.parents and code_path != code_dir.resolve():
             raise SandboxViolation("Planned code path must remain inside the supplied code directory")
-        if self._sha256_file(code_path) != spec.code_sha256:
+        if self._sha256_path(code_path) != spec.code_sha256:
             raise SandboxViolation("Code SHA-256 does not match the planned experiment")
         artifact_dir.mkdir(parents=True, exist_ok=True)
         image_digest = self._image_digest(spec.sandbox.image)
@@ -89,10 +101,7 @@ class DockerSandboxExecutor:
             dataset_path = Path(dataset.local_path).resolve()
             if not dataset_path.exists():
                 raise SandboxViolation(f"Dataset path does not exist: {dataset.local_path}")
-            actual_hash = self._sha256_file(dataset_path) if dataset_path.is_file() else None
-            if actual_hash is None:
-                raise SandboxViolation("Dataset local_path must reference a single immutable file for hash verification")
-            if actual_hash != dataset.sha256:
+            if self._sha256_path(dataset_path) != dataset.sha256:
                 raise SandboxViolation(f"Dataset SHA-256 mismatch for {dataset.dataset_id}")
             command += ["-v", f"{dataset_path}:{'/datasets/' + self._safe_name(dataset.dataset_id)}:ro"]
         if spec.sandbox.allow_gpu:
