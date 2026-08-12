@@ -7,7 +7,7 @@ from agentic_research.intelligence.pipeline import extract_paper_intelligence
 from agentic_research.schemas import Paper
 
 
-def _make_paper_pdf(path: Path) -> None:
+def _make_paper_pdf(path: Path, *, with_appendix: bool = False) -> None:
     document = fitz.open()
     page = document.new_page(width=600, height=800)
     page.insert_text((60, 60), "A Study on Retrieval", fontsize=18)
@@ -19,6 +19,9 @@ def _make_paper_pdf(path: Path) -> None:
     page.insert_text((60, 250), "Our method improves accuracy over the baseline.")
     page.insert_text((60, 280), "References", fontsize=16)
     page.insert_text((60, 310), "[1] Alice Example. Retrieval Systems. 2024. doi:10.1234/XYZ")
+    if with_appendix:
+        page.insert_text((60, 360), "Appendix", fontsize=16)
+        page.insert_text((60, 390), "Appendix content is not a bibliography entry.")
     document.save(path)
     document.close()
 
@@ -44,6 +47,19 @@ def test_end_to_end_pipeline(tmp_path: Path) -> None:
     assert all(link.evidence_id in evidence_ids for link in extraction.claim_links)
     assert enriched.metadata["phase2_extraction"]["field_values_are_candidates"] is True
     assert all(claim.section_id != extraction.sections[-1].section_id for claim in extraction.claims)
+
+
+def test_references_stop_before_appendix(tmp_path: Path) -> None:
+    pdf = tmp_path / "paper.pdf"
+    _make_paper_pdf(pdf, with_appendix=True)
+    paper = Paper(paper_id="p1", title="A Study on Retrieval", year=2025)
+    _, extraction = extract_paper_intelligence(paper, pdf)
+    assert len(extraction.references) == 1
+    assert all("Appendix content" not in reference.raw_text for reference in extraction.references)
+    appendix_sections = [section for section in extraction.sections if section.normalized_title == "appendix"]
+    assert appendix_sections
+    appendix_id = appendix_sections[0].section_id
+    assert all(claim.section_id != appendix_id for claim in extraction.claims)
 
 
 def test_pipeline_can_apply_calibrated_confidence(tmp_path: Path) -> None:
