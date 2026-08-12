@@ -1,6 +1,6 @@
 # Implementation roadmap
 
-## Phase 0 — Foundation
+## Phase 0 — Foundation (implemented)
 
 - Canonical paper/evidence/gap/hypothesis/experiment schemas
 - Deterministic local JSONL ingestion
@@ -22,14 +22,17 @@
 - [x] full-text acquisition manifests
 - [x] PDF/HTML parsing
 
-## Phase 2 — Evidence-grounded paper intelligence
+## Phase 2 — Evidence-grounded paper intelligence (implemented)
 
-- section-aware chunking
-- table/figure extraction
-- structured field extraction
-- claim/evidence linking
-- extraction confidence calibration
-- citation graph ingestion
+- [x] layout-aware text blocks and section hierarchy
+- [x] section-aware chunking
+- [x] table extraction
+- [x] figure/image extraction and caption detection
+- [x] structured candidate field extraction
+- [x] claim/evidence linking
+- [x] extraction confidence calibration
+- [x] citation graph ingestion
+- [x] deterministic end-to-end paper analysis
 
 ## Phase 3 — Retrieval and world model
 
