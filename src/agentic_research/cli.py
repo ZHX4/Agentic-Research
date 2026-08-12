@@ -1,4 +1,6 @@
-"""Command-line interface for the deterministic research-agent foundation."""
+"""Command-line interface for Agentic-Research."""
+
+from __future__ import annotations
 
 import json
 from pathlib import Path
@@ -9,6 +11,13 @@ from rich.table import Table
 
 from agentic_research.gaps import detect_missing_combinations
 from agentic_research.ingestion.jsonl import load_papers
+from agentic_research.literature.factory import build_literature_service
+from agentic_research.literature.fulltext import FullTextAcquirer, FullTextManifest, parse_full_text
+from agentic_research.literature.settings import LiteratureSettings
+from agentic_research.literature.transport import HttpClient, RateLimiter
+from agentic_research.retrieval.contracts import SearchQuery
+from agentic_research.schemas import Paper
+from agentic_research.storage.jsonl import JsonlStore
 
 app = typer.Typer(help="Agentic-Research scientific discovery toolkit.")
 
@@ -46,11 +55,7 @@ def gaps(
     result = detect_missing_combinations(papers)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
-        json.dumps(
-            [item.model_dump(mode="json") for item in result],
-            indent=2,
-            ensure_ascii=False,
-        ),
+        json.dumps([item.model_dump(mode="json") for item in result], indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
     print(f"Wrote {len(result)} candidate gaps to {output}")
@@ -61,6 +66,97 @@ def validate(input: Path = typer.Option(..., exists=True, readable=True)) -> Non
     """Validate a JSONL corpus against the canonical Paper schema."""
     papers = list(load_papers(input))
     print(f"Validated {len(papers)} papers.")
+
+
+@app.command(name="search")
+def literature_search(
+    text: str = typer.Argument(..., help="Scientific search query."),
+    limit: int = typer.Option(20, min=1, max=1000, help="Maximum unique papers to return."),
+    year_from: int | None = typer.Option(None, min=1900, max=2200),
+    year_to: int | None = typer.Option(None, min=1900, max=2200),
+    temporal_cutoff: int | None = typer.Option(None, min=1900, max=2200),
+    output: Path | None = typer.Option(None, help="Optional JSON output path."),
+) -> None:
+    """Search configured scholarly sources and deduplicate the results."""
+    query = SearchQuery(
+        text=text,
+        limit=limit,
+        year_from=year_from,
+        year_to=year_to,
+        temporal_cutoff=temporal_cutoff,
+    )
+    with build_literature_service(LiteratureSettings()) as service:
+        hits = service.search(query)
+    payload = [
+        {
+            "source": hit.source,
+            "score": hit.score,
+            "retrieval_reason": hit.retrieval_reason,
+            "paper": hit.paper.model_dump(mode="json"),
+        }
+        for hit in hits
+    ]
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        print(f"Wrote {len(payload)} unique papers to {output}")
+    else:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+
+
+@app.command()
+def acquire(
+    input: Path = typer.Option(..., exists=True, readable=True, help="Input JSONL paper corpus."),
+    output: Path = typer.Option(..., help="Output JSONL acquisition manifest."),
+    output_dir: Path = typer.Option(Path("artifacts/fulltext"), help="Directory for downloaded files."),
+) -> None:
+    """Acquire available open full text and write immutable-style manifests."""
+    settings = LiteratureSettings()
+    client = HttpClient(
+        user_agent=settings.user_agent,
+        timeout_seconds=settings.request_timeout_seconds,
+        rate_limiter=RateLimiter(0.1),
+    )
+    store = JsonlStore(output)
+    acquirer = FullTextAcquirer(client=client, output_dir=output_dir)
+    try:
+        count = 0
+        for paper in load_papers(input):
+            try:
+                manifest = acquirer.acquire(paper)
+            except ValueError as exc:
+                manifest = FullTextManifest(
+                    paper_id=paper.paper_id,
+                    source="none",
+                    requested_url=paper.url or "https://example.invalid/",
+                    media_type="unknown",
+                    status="failed",
+                    error=str(exc),
+                )
+            store.append(manifest)
+            count += 1
+        print(f"Wrote {count} full-text manifests to {output}")
+    finally:
+        client.close()
+
+
+@app.command()
+def parse(
+    manifest: Path = typer.Option(..., exists=True, readable=True, help="JSONL full-text manifest."),
+    output: Path = typer.Option(..., help="Output JSONL parsed documents."),
+) -> None:
+    """Parse successfully acquired PDF/HTML documents from a manifest."""
+    manifests = JsonlStore(manifest).read(FullTextManifest)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("w", encoding="utf-8") as handle:
+        count = 0
+        for item in manifests:
+            if item.status != "downloaded":
+                continue
+            document = parse_full_text(item)
+            handle.write(document.model_dump_json() + "\n")
+            count += 1
+    print(f"Parsed {count} documents into {output}")
 
 
 if __name__ == "__main__":
