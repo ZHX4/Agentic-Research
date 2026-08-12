@@ -32,7 +32,6 @@ def normalize_arxiv_id(value: str | None) -> str | None:
     value = value.removeprefix("arxiv:").strip()
     if value.endswith(".pdf"):
         value = value[:-4]
-    # Version suffixes represent revisions of the same work for canonical identity.
     value = re.sub(r"v\d+$", "", value)
     return value or None
 
@@ -65,9 +64,7 @@ def canonical_identity(paper: Paper) -> str:
                 return f"{source}:{source_id.strip().lower()}"
 
     authors = [normalize_author(author) for author in paper.authors[:2] if author]
-    fingerprint = "|".join(
-        [normalize_title(paper.title), str(paper.year or ""), *authors]
-    )
+    fingerprint = "|".join([normalize_title(paper.title), str(paper.year or ""), *authors])
     return f"fingerprint:{hashlib.sha256(fingerprint.encode('utf-8')).hexdigest()[:24]}"
 
 
@@ -76,11 +73,14 @@ def _merge_strings(left: list[str], right: list[str]) -> list[str]:
 
 
 def merge_papers(papers: Iterable[Paper]) -> Paper:
-    """Merge source records deterministically, preferring populated metadata."""
+    """Merge source records deterministically and emit a canonical record."""
     records = list(papers)
     if not records:
         raise ValueError("Cannot merge an empty paper collection")
-    records.sort(key=lambda paper: (len(paper.abstract or ""), len(paper.authors), len(paper.metadata)), reverse=True)
+    records.sort(
+        key=lambda paper: (len(paper.abstract or ""), len(paper.authors), len(paper.metadata)),
+        reverse=True,
+    )
     base = records[0].model_copy(deep=True)
 
     for record in records[1:]:
@@ -88,6 +88,12 @@ def merge_papers(papers: Iterable[Paper]) -> Paper:
             base.abstract = record.abstract
         if not base.year and record.year:
             base.year = record.year
+        if not base.doi and record.doi:
+            base.doi = record.doi
+        if not base.arxiv_id and record.arxiv_id:
+            base.arxiv_id = record.arxiv_id
+        if base.url is None and record.url is not None:
+            base.url = record.url
         base.authors = _merge_strings(base.authors, record.authors)
         base.methods = _merge_strings(base.methods, record.methods)
         base.tasks = _merge_strings(base.tasks, record.tasks)
@@ -99,9 +105,10 @@ def merge_papers(papers: Iterable[Paper]) -> Paper:
         base.future_work = _merge_strings(base.future_work, record.future_work)
         base.evidence.extend(record.evidence)
         base.metadata = {**record.metadata, **base.metadata}
-        base.paper_id = canonical_identity(base)
 
-    # Keep evidence deterministic and unique by evidence id.
+    base.doi = normalize_doi(base.doi)
+    base.arxiv_id = normalize_arxiv_id(base.arxiv_id)
+    base.paper_id = canonical_identity(base)
     base.evidence = list({item.evidence_id: item for item in base.evidence}.values())
     return base
 
