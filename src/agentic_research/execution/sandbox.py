@@ -32,12 +32,23 @@ class DockerSandboxExecutor:
 
     def _image_digest(self, image: str) -> str:
         completed = subprocess.run(
-            [self.docker_binary, "image", "inspect", image, "--format", "{{json .RepoDigests}}"],
+            [self.docker_binary, "image", "inspect", image, "--format", "{{.Id}}|{{json .RepoDigests}}"],
             capture_output=True,
             text=True,
             check=True,
         )
-        return hashlib.sha256(completed.stdout.encode("utf-8")).hexdigest()
+        fingerprint = completed.stdout.strip()
+        if not fingerprint:
+            raise SandboxViolation(f"Docker image has no inspectable identity: {image}")
+        return hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _sha256_file(path: Path) -> str:
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            while chunk := handle.read(1024 * 1024):
+                digest.update(chunk)
+        return digest.hexdigest()
 
     @staticmethod
     def _safe_name(value: str) -> str:
@@ -49,8 +60,13 @@ class DockerSandboxExecutor:
             raise ValueError(f"Seed {seed} is not declared by the experiment spec")
         if not code_dir.is_dir():
             raise FileNotFoundError(code_dir)
+        code_path = (code_dir / spec.code_path).resolve()
+        if not code_path.is_file() or code_dir.resolve() not in code_path.parents:
+            raise SandboxViolation("Planned code path must remain inside the supplied code directory")
+        if self._sha256_file(code_path) != spec.code_sha256:
+            raise SandboxViolation("Code SHA-256 does not match the planned experiment")
         artifact_dir.mkdir(parents=True, exist_ok=True)
-        self._image_digest(spec.sandbox.image)
+        image_digest = self._image_digest(spec.sandbox.image)
         command = [self.docker_binary, "run", "--rm"]
         if spec.sandbox.read_only_root:
             command.append("--read-only")
@@ -67,16 +83,18 @@ class DockerSandboxExecutor:
             "-v", f"{artifact_dir.resolve()}:/outputs:rw",
             "-w", spec.sandbox.workdir,
         ]
-        dataset_root = artifact_dir.parent / f"seed-{seed}-datasets"
         for dataset in spec.datasets:
             if not dataset.local_path:
                 continue
             dataset_path = Path(dataset.local_path).resolve()
             if not dataset_path.exists():
                 raise SandboxViolation(f"Dataset path does not exist: {dataset.local_path}")
-            dataset_root.mkdir(parents=True, exist_ok=True)
-            mount_target = f"/datasets/{self._safe_name(dataset.dataset_id)}"
-            command += ["-v", f"{dataset_path}:{mount_target}:ro"]
+            actual_hash = self._sha256_file(dataset_path) if dataset_path.is_file() else None
+            if actual_hash is None:
+                raise SandboxViolation("Dataset local_path must reference a single immutable file for hash verification")
+            if actual_hash != dataset.sha256:
+                raise SandboxViolation(f"Dataset SHA-256 mismatch for {dataset.dataset_id}")
+            command += ["-v", f"{dataset_path}:{'/datasets/' + self._safe_name(dataset.dataset_id)}:ro"]
         if spec.sandbox.allow_gpu:
             command += ["--gpus", "all"]
         for key in spec.sandbox.allowed_env:
@@ -86,6 +104,7 @@ class DockerSandboxExecutor:
             "-e", f"AGENTIC_RESEARCH_SEED={seed}",
             "-e", "AGENTIC_RESEARCH_OUTPUT_DIR=/outputs",
             "-e", "AGENTIC_RESEARCH_DATASET_ROOT=/datasets",
+            "-e", f"AGENTIC_RESEARCH_IMAGE_FINGERPRINT={image_digest}",
             spec.sandbox.image,
             *spec.command,
         ]
@@ -96,12 +115,7 @@ class DockerSandboxExecutor:
         stderr = b""
         error: str | None = None
         try:
-            completed = subprocess.run(
-                command,
-                capture_output=True,
-                timeout=spec.sandbox.timeout_seconds,
-                check=False,
-            )
+            completed = subprocess.run(command, capture_output=True, timeout=spec.sandbox.timeout_seconds, check=False)
             stdout, stderr = completed.stdout, completed.stderr
             exit_code = completed.returncode
             status = "succeeded" if exit_code == 0 else "failed"
