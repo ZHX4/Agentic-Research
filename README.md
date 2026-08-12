@@ -1,146 +1,82 @@
 # Agentic-Research
 
-An evidence-grounded research-agent system for scientific literature intelligence, gap discovery, adversarial novelty verification, hypothesis generation, and eventually reproducible experimental validation.
+An evidence-grounded research-agent system for scientific literature intelligence, gap discovery, adversarial novelty verification, hypothesis reasoning, and eventually reproducible experimental validation.
 
-> **Status:** Phase 5 implemented. Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, and Phase 5 are complete; Phase 6 has not started.
+> **Status:** Phase 6 implemented. Phases 0–6 are complete; Phase 7 has not started.
 
 ## Research objective
 
-The core research question is:
-
 > Can an evidence-grounded multi-agent system discover scientifically meaningful research gaps with fewer false positives than simpler LLM/RAG baselines, and can verified gaps produce hypotheses that survive reproducible experiments?
 
-The initial research domain is **AI/ML research**, with early emphasis on **LLM systems** (reasoning, retrieval/RAG, memory, long context, efficiency, evaluation, and tool use).
+The initial domain is **AI/ML research**, with early emphasis on LLM systems: reasoning, retrieval/RAG, memory, long context, efficiency, evaluation, and tool use.
 
-## Architecture target
+## Implemented architecture
 
 ```text
-Research Goal
-      |
-      v
-Literature Planner ---> OpenAlex / Semantic Scholar / arXiv
-      |
-      v
-Literature Intelligence
-  - source adapters
-  - temporal filtering
-  - canonical identity
-  - deduplication
-  - full-text acquisition
-  - PDF/HTML parsing
-      |
-      v
-Paper Intelligence
-  - layout-aware sections
-  - section-aware chunks
-  - tables / figures
-  - structured candidate fields
-  - claims / evidence
-  - citation edges
-  - confidence calibration
-      |
-      v
-Phase 3 Retrieval + World Model
-  - FTS5/BM25 lexical retrieval
-  - model-isolated dense embeddings
-  - RRF hybrid retrieval
-  - metadata / temporal filters
-  - reranking
-  - directional citation traversal
-      |
-      v
+Literature sources
+      ↓
+Phase 1 Literature Intelligence
+      ↓
+Phase 2 Paper Intelligence / Evidence
+      ↓
+Phase 3 Retrieval + Scientific World Model
+      ↓
 Phase 4 Gap Discovery
-  - missing combinations
-  - contradictions
-  - underexplored conditions
-  - recurring limitations
-  - cross-domain gaps
-  - graph negative-space signals
-      |
-      v
-Phase 5 Adversarial Verification
-  - Devil's Advocate
-  - deterministic query expansion
-  - local + external search
-  - nearest-prior-work comparison
-  - bounded full-text verification
-  - counterevidence registry
-  - novelty uncertainty
-      |
-      v
-Hypothesis Factory (future)
-      |
-      v
-Experiment Planner / Sandbox (future)
-      |
-      v
-Independent Review / Paper (future)
+      ↓
+Phase 5 Adversarial Novelty Verification
+      ↓
+Phase 6 Hypothesis Factory
+      ├── generation
+      ├── diversity / clustering
+      ├── reflection
+      ├── tournament
+      ├── evolution
+      └── Pareto selection
+      ↓
+Phase 7 Scientific Execution (future)
 ```
 
-## Phase 5: adversarial novelty verification
-
-Verify Phase 4 candidates against the local indexed world model and configured scholarly providers:
+## Phase 6: hypothesis reasoning
 
 ```bash
-agentic-research-verify verify-gaps \
-  --input artifacts/gap-discovery.json \
-  --output artifacts/novelty-report.json \
-  --database artifacts/world-model.sqlite
+agentic-research-hypotheses reason \
+  --input artifacts/novelty-report.json \
+  --output artifacts/hypothesis-run.json
 ```
 
-By default, the verifier performs bounded deep full-text checks of the closest prior works. The cache and budget can be controlled with `--fulltext-cache-dir` and `--max-deep-verifications`.
+Phase 6 creates structured hypotheses from eligible Phase 5 verified gaps. It records upstream gap IDs, mechanism, expected effect, falsification condition, assumptions, predictions, scores, reflection, lineage, and final selection.
 
-For deterministic local-only verification:
-
-```bash
-agentic-research-verify verify-gaps \
-  --input artifacts/gap-discovery.json \
-  --output artifacts/novelty-report.json \
-  --database artifacts/world-model.sqlite \
-  --no-external
-```
-
-Phase 5 distinguishes `disproved`, `weakened`, `supported`, and `inconclusive`. `supported` means the candidate survived the configured verification budget and required deep checks; it does **not** mean globally proven novel.
+The default gate accepts `survived` gaps. `weakened` and `uncertain` inputs require explicit configuration; uncertain inputs are never enabled by default.
 
 ## Scientific integrity rules
 
-1. A missing retrieval result is never treated as proof of novelty.
-2. Extracted fields are candidate data until later validation.
-3. Extracted claims are evidence candidates, not automatically true scientific conclusions.
-4. Every extracted claim has an explicit evidence object and source chunk.
-5. Confidence is heuristic until calibrated against labeled examples.
-6. Historical/temporal benchmarks must enforce strict information cutoffs.
-7. LLM self-evaluation is not accepted as sole evidence of novelty.
-8. Negative and null results are first-class research artifacts.
-9. Hybrid retrieval never combines incomparable lexical and dense raw scores; it uses rank fusion.
-10. Vectors from different embedding models are isolated and never compared.
-11. Citation targets are never guessed; unresolved citations retain their reference provenance.
-12. Phase 4 candidates are corpus-relative structural signals, not novelty claims.
-13. Phase 5 treats failed or empty search as uncertainty, never proof of novelty.
-14. Temporal cutoffs exclude future papers and unknown-year papers during historical verification.
-15. Direct prior work can disprove a gap from structured data, graph evidence, or successful deep full-text evidence.
-16. When required full-text evidence is unavailable, Phase 5 does not convert search completion into a novelty conclusion.
-17. Phase 5 does not generate research hypotheses or experiments.
+1. Disproved gaps cannot generate hypotheses.
+2. A hypothesis is not treated as experimentally validated.
+3. Every hypothesis contains an explicit falsification condition.
+4. Generation is separated from reflection and selection.
+5. Near-duplicates are removed deterministically.
+6. Clustering is deterministic and used for diversity control, not truth judgment.
+7. Tournament results are deterministic with explicit tie-breaking.
+8. Evolution is bounded and fully serialized in the run artifact.
+9. Pareto selection does not imply scientific correctness.
+10. No generated code or experiment is executed in Phase 6; execution begins in Phase 7.
 
 ## Repository layout
 
 ```text
 src/agentic_research/
   literature/    source adapters, transport, identity, dedup, full-text
-  intelligence/  sections, chunks, tables, figures, claims, evidence, citations, calibration
-  schemas/       canonical scientific data contracts
-  storage/       persistence abstractions
-  world_model/   persistent scientific graph + chunk/vector store
-  ingestion/     deterministic local corpus ingestion
-  retrieval/     provider contracts, embeddings, hybrid retrieval, reranking
-  gaps/          deterministic candidate-gap discovery
-  verification/  Devil's Advocate + adversarial novelty verification
-  agents/        agent contracts
-  evaluation/    benchmark and metric contracts
-  cli.py         Phase 0–4 command-line entry point
+  intelligence/  sections, chunks, tables, figures, claims, evidence, citations
+  retrieval/     lexical/dense/hybrid retrieval and reranking
+  world_model/   persistent scientific graph and vector store
+  gaps/          Phase 4 candidate gap discovery
+  verification/ Phase 5 Devil's Advocate and novelty verification
+  hypotheses/    Phase 6 generation, reflection, clustering, evolution, selection
+  schemas/       canonical scientific contracts
+  agents/        provider-independent agent contracts
 
-docs/            architecture, methodology, roadmap, phase gates
-tests/           unit and offline integration/smoke tests
+docs/            architecture, methodology, phase gates, roadmap
+tests/           unit and offline integration tests
 configs/         reproducible configuration
 data/            deterministic demo data only
 ```
@@ -156,29 +92,20 @@ python -m pip install --upgrade pip
 pip install -e '.[dev]'
 
 python -m agentic_research.cli --help
-python -m agentic_research.cli demo
-python -m agentic_research.cli validate --input data/demo/papers.jsonl
-python -m agentic_research.cli gaps --input data/demo/papers.jsonl --output artifacts/demo/gaps.json
 agentic-research-verify --help
-```
-
-For model-backed semantic retrieval:
-
-```bash
-pip install -e '.[embeddings]'
+agentic-research-hypotheses --help
 ```
 
 ## Phase gates
 
-- [x] [Phase 0 acceptance gate](docs/phase-0.md)
-- [x] [Phase 1 acceptance gate](docs/phase-1.md)
-- [x] [Phase 2 acceptance gate](docs/phase-2.md)
-- [x] [Phase 3 acceptance gate](docs/phase-3.md)
-- [x] [Phase 4 acceptance gate](docs/phase-4.md)
-- [x] [Phase 5 acceptance gate](docs/phase-5.md)
-- [ ] Phase 6 acceptance gate
-
-See `docs/phase-5-checklist.md` for the Phase 5 implementation checklist.
+- [x] [Phase 0](docs/phase-0.md)
+- [x] [Phase 1](docs/phase-1.md)
+- [x] [Phase 2](docs/phase-2.md)
+- [x] [Phase 3](docs/phase-3.md)
+- [x] [Phase 4](docs/phase-4.md)
+- [x] [Phase 5](docs/phase-5.md)
+- [x] [Phase 6](docs/phase-6.md)
+- [ ] Phase 7
 
 ## Roadmap
 
@@ -188,7 +115,7 @@ See `docs/phase-5-checklist.md` for the Phase 5 implementation checklist.
 - [x] Phase 3 retrieval and scientific world model
 - [x] Phase 4 gap discovery
 - [x] Phase 5 adversarial novelty verification
-- [ ] Phase 6 hypothesis reasoning
+- [x] Phase 6 hypothesis reasoning
 - [ ] Phase 7 scientific execution
 - [ ] Phase 8 evaluation
 - [ ] Phase 9 autonomous discovery
