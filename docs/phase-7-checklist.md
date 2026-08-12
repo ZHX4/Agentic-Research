@@ -3,6 +3,7 @@
 - [x] Canonical dataset, falsification, sandbox, experiment, metric, artifact, seed-run, result, and search-tree schemas
 - [x] Deterministic experiment planner
 - [x] Explicit falsification plan
+- [x] Explicit metric direction (`higher` / `lower`)
 - [x] Code SHA-256 verification before execution
 - [x] Dataset SHA-256/tree-hash verification before mounting
 - [x] Multi-seed execution
@@ -18,7 +19,9 @@
 - [x] Artifact hashing and collection
 - [x] Structured metrics ingestion
 - [x] Explicit falsification evaluation
+- [x] Inconclusive result when no operational threshold is specified
 - [x] Reproducibility flag based on multi-seed consistency
+- [x] Structured rejection for execution preflight/environment failures
 - [x] Experiment search tree
 - [x] Dedicated Phase 7 CLI
 - [x] Offline regression tests
