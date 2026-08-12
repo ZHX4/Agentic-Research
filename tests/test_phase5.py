@@ -164,7 +164,7 @@ def test_batch_report_contains_only_candidate_inputs(tmp_path: Path) -> None:
     assert result.results[0].original_status == GapStatus.CANDIDATE
 
 
-def test_local_world_model_can_be_searched(tmp_path: Path) -> None:
+def test_local_world_model_exact_combination_disproves_candidate(tmp_path: Path) -> None:
     db = tmp_path / "world.sqlite"
     prior = paper(
         "prior",
@@ -194,4 +194,5 @@ def test_local_world_model_can_be_searched(tmp_path: Path) -> None:
         result = verifier.verify(candidate(), NoveltyVerificationConfig(include_local=True, include_external=False))
 
     assert "local-world-model" in result.searched_sources
-    assert result.prior_work
+    assert result.verdict == "disproved"
+    assert result.counterevidence
