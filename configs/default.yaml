@@ -63,9 +63,15 @@ phase5:
   min_direct_similarity: 0.92
   near_match_similarity: 0.72
   min_broad_searches: 3
+  temporal_cutoff: null
   include_local: true
   include_external: true
   allow_status_transition: true
+  deep_verify: true
+  max_deep_verifications: 5
+  require_deep_verification_for_supported: true
+  deep_verification_similarity_floor: 0.45
+  fulltext_cache_dir: "artifacts/phase5-fulltext"
 
 storage:
   mode: sqlite-world-model
