@@ -19,7 +19,7 @@ class GapCandidate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    gap_id: str
+    gap_id: str = Field(min_length=1)
     gap_type: Literal[
         "missing_combination",
         "contradiction",
@@ -27,7 +27,7 @@ class GapCandidate(BaseModel):
         "unresolved_limitation",
         "cross_domain",
     ]
-    statement: str
+    statement: str = Field(min_length=1)
     method: str | None = None
     task: str | None = None
     dataset: str | None = None
@@ -37,4 +37,4 @@ class GapCandidate(BaseModel):
     search_queries: list[str] = Field(default_factory=list)
     confidence: float = Field(ge=0, le=1)
     status: GapStatus = GapStatus.CANDIDATE
-    rationale: str
+    rationale: str = Field(min_length=1)
