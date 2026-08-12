@@ -12,9 +12,10 @@ from agentic_research.intelligence.extraction import extract_claims, extract_fie
 from agentic_research.intelligence.layout import extract_figures, extract_tables, iter_text_blocks
 from agentic_research.intelligence.sections import detect_sections
 from agentic_research.schemas import Evidence, Paper
-from agentic_research.schemas.paper_intelligence import StructuredExtraction
+from agentic_research.schemas.paper_intelligence import Section, StructuredExtraction
 
-EXTRACTOR_VERSION = "phase2-native-1.1"
+EXTRACTOR_VERSION = "phase2-native-1.2"
+_REFERENCE_TITLES = {"references", "bibliography", "works cited"}
 
 
 def _sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
@@ -23,6 +24,22 @@ def _sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
         while data := handle.read(chunk_size):
             digest.update(data)
     return digest.hexdigest()
+
+
+def _reference_range(sections: list[Section]) -> tuple[int, int | None] | None:
+    """Return document-order bounds for the reference section and its descendants."""
+    candidates = [section for section in sections if section.normalized_title in _REFERENCE_TITLES]
+    if not candidates:
+        return None
+    reference = candidates[-1]
+    next_boundary: int | None = None
+    for section in sections:
+        if section.order <= reference.order:
+            continue
+        if section.level <= reference.level:
+            next_boundary = section.order
+            break
+    return reference.order, next_boundary
 
 
 def extract_paper_intelligence(
@@ -42,23 +59,30 @@ def extract_paper_intelligence(
     tables = extract_tables(pdf_path, paper.paper_id)
     figures = extract_figures(pdf_path, paper.paper_id)
 
-    reference_section = next(
-        (
-            section
-            for section in reversed(sections)
-            if section.normalized_title in {"references", "bibliography", "works cited"}
-        ),
-        None,
-    )
-    reference_blocks = [block for block in blocks if block.order >= reference_section.order] if reference_section else []
+    reference_range = _reference_range(sections)
+    reference_section = None
+    if reference_range is not None:
+        reference_start, reference_end = reference_range
+        reference_section = next(section for section in sections if section.order == reference_start)
+        reference_blocks = [
+            block
+            for block in blocks
+            if block.order >= reference_start and (reference_end is None or block.order < reference_end)
+        ]
+    else:
+        reference_blocks = []
+
     references_text = "\n".join(block.text for block in reference_blocks)
     references = extract_references(paper, references_text) if references_text else []
 
-    body_chunks = [
-        chunk
-        for chunk in chunks
-        if not (reference_section and chunk.section_id == reference_section.section_id)
-    ]
+    reference_section_ids = {
+        section.section_id
+        for section in sections
+        if reference_range is not None
+        and section.order >= reference_range[0]
+        and (reference_range[1] is None or section.order < reference_range[1])
+    }
+    body_chunks = [chunk for chunk in chunks if chunk.section_id not in reference_section_ids]
     citation_edges = extract_citation_edges(paper, body_chunks, references)
     claims, evidence, links = extract_claims(paper.paper_id, body_chunks)
 
