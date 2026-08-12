@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class CalibrationExample(BaseModel):
@@ -40,6 +40,16 @@ class IsotonicModel(BaseModel):
     thresholds: list[float] = Field(min_length=1)
     values: list[float] = Field(min_length=1)
 
+    @model_validator(mode="after")
+    def validate_model(self) -> "IsotonicModel":
+        if len(self.thresholds) != len(self.values):
+            raise ValueError("thresholds and values must have equal lengths")
+        if any(not 0 <= item <= 1 for item in self.thresholds + self.values):
+            raise ValueError("thresholds and values must be within [0, 1]")
+        if self.thresholds != sorted(self.thresholds):
+            raise ValueError("thresholds must be sorted")
+        return self
+
 
 @dataclass(frozen=True)
 class IsotonicCalibrator:
@@ -74,10 +84,6 @@ class IsotonicCalibrator:
 
     @classmethod
     def from_model(cls, model: IsotonicModel) -> "IsotonicCalibrator":
-        if len(model.thresholds) != len(model.values) or not model.thresholds:
-            raise ValueError("thresholds and values must have the same non-zero length")
-        if model.thresholds != sorted(model.thresholds):
-            raise ValueError("thresholds must be sorted")
         return cls(thresholds=list(model.thresholds), values=list(model.values))
 
     def to_model(self) -> IsotonicModel:
