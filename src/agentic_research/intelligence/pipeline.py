@@ -17,6 +17,14 @@ from agentic_research.schemas.paper_intelligence import StructuredExtraction
 EXTRACTOR_VERSION = "phase2-native-1.0"
 
 
+def _sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while data := handle.read(chunk_size):
+            digest.update(data)
+    return digest.hexdigest()
+
+
 def extract_paper_intelligence(
     paper: Paper,
     pdf_path: Path,
@@ -27,6 +35,7 @@ def extract_paper_intelligence(
     if not pdf_path.is_file():
         raise FileNotFoundError(pdf_path)
 
+    document_digest = _sha256_file(pdf_path)
     blocks = iter_text_blocks(pdf_path)
     sections = detect_sections(paper.paper_id, blocks)
     chunks = chunk_blocks(paper.paper_id, blocks, sections)
@@ -63,7 +72,7 @@ def extract_paper_intelligence(
         enriched_paper.metadata.setdefault("phase2_extraction", {})["calibration_applied"] = True
 
     extraction_id = hashlib.sha1(
-        f"{paper.paper_id}|{pdf_path.resolve()}|{pdf_path.stat().st_size}|{pdf_path.stat().st_mtime_ns}".encode("utf-8")
+        f"{paper.paper_id}|{document_digest}|{EXTRACTOR_VERSION}".encode("utf-8")
     ).hexdigest()[:20]
     extraction = StructuredExtraction(
         extraction_id=f"extract-{extraction_id}",
@@ -97,6 +106,7 @@ def _merge_fields_and_evidence(
         **enriched.metadata,
         "phase2_extraction": {
             "extractor_version": EXTRACTOR_VERSION,
+            "document_sha256": enriched.metadata.get("document_sha256", None),
             "field_values_are_candidates": True,
             "claim_evidence_is_extracted": True,
         },
