@@ -9,34 +9,16 @@ from agentic_research.schemas.paper_intelligence import Section
 
 _NUMBERED = re.compile(r"^(?P<num>\d+(?:\.\d+)*)[.)]?\s+(?P<title>.+)$")
 _KNOWN = {
-    "abstract",
-    "introduction",
-    "background",
-    "related work",
-    "literature review",
-    "method",
-    "methods",
-    "methodology",
-    "approach",
-    "materials and methods",
-    "experiments",
-    "experimental setup",
-    "results",
-    "discussion",
-    "conclusion",
-    "conclusions",
-    "limitations",
-    "future work",
-    "references",
-    "appendix",
-    "supplementary material",
+    "abstract", "introduction", "background", "related work", "literature review", "method",
+    "methods", "methodology", "approach", "materials and methods", "experiments",
+    "experimental setup", "results", "discussion", "conclusion", "conclusions",
+    "limitations", "future work", "references", "appendix", "supplementary material",
 }
 
 
 def normalize_heading(title: str) -> str:
     title = re.sub(r"\s+", " ", title).strip().lower()
-    title = re.sub(r"^\d+(?:\.\d+)*[.)]?\s*", "", title)
-    return title
+    return re.sub(r"^\d+(?:\.\d+)*[.)]?\s*", "", title)
 
 
 def heading_level(block: TextBlock, median_font_size: float) -> int | None:
@@ -48,8 +30,7 @@ def heading_level(block: TextBlock, median_font_size: float) -> int | None:
     if normalized in _KNOWN:
         return 1
     if match:
-        depth = len(match.group("num").split("."))
-        return min(depth, 6)
+        return min(len(match.group("num").split(".")), 6)
     if block.bold and block.font_size >= median_font_size * 1.08 and len(title.split()) <= 12:
         return 1
     if block.font_size >= median_font_size * 1.18 and len(title.split()) <= 10:
@@ -58,10 +39,7 @@ def heading_level(block: TextBlock, median_font_size: float) -> int | None:
 
 
 def detect_sections(paper_id: str, blocks: list[TextBlock]) -> list[Section]:
-    """Create deterministic hierarchical sections from layout blocks.
-
-    This is intentionally conservative: ambiguous lines remain body text.
-    """
+    """Create deterministic hierarchical sections from layout blocks."""
     if not blocks:
         return []
     sizes = sorted(block.font_size for block in blocks if block.font_size > 0)
@@ -69,21 +47,20 @@ def detect_sections(paper_id: str, blocks: list[TextBlock]) -> list[Section]:
     sections: list[Section] = []
     stack: list[Section] = []
 
-    for order, block in enumerate(blocks):
+    for block in blocks:
         level = heading_level(block, median)
         if level is None:
             continue
         while stack and stack[-1].level >= level:
             stack.pop()
         parent = stack[-1].section_id if stack else None
-        section_id = f"sec-{paper_id}-{len(sections) + 1:04d}"
         section = Section(
-            section_id=section_id,
+            section_id=f"sec-{paper_id}-{len(sections) + 1:04d}",
             paper_id=paper_id,
             title=block.text,
             normalized_title=normalize_heading(block.text),
             level=level,
-            order=order,
+            order=block.order,
             parent_section_id=parent,
             page_start=block.page,
             page_end=block.page,
@@ -91,23 +68,14 @@ def detect_sections(paper_id: str, blocks: list[TextBlock]) -> list[Section]:
         sections.append(section)
         stack.append(section)
 
-    for index, section in enumerate(sections):
-        next_page = blocks[0].page if index + 1 >= len(sections) else next(
-            (b.page for b in blocks if b.text == sections[index + 1].title and b.page >= (section.page_start or 1)),
-            section.page_start or 1,
-        )
-        section.page_end = max(section.page_start or 1, next_page)
-
+    for index, section in enumerate(sections[:-1]):
+        section.page_end = sections[index + 1].page_start
+    if sections:
+        section.page_end = blocks[-1].page
     return sections
 
 
 def assign_section(block: TextBlock, sections: list[Section]) -> Section | None:
-    candidates = [
-        section
-        for section in sections
-        if (section.page_start or 1) <= block.page
-        and (section.page_end or section.page_start or 1) >= block.page
-    ]
-    if not candidates:
-        return None
-    return max(candidates, key=lambda section: section.order)
+    """Assign a block to the most recent preceding section by document order."""
+    preceding = [section for section in sections if section.order <= block.order]
+    return max(preceding, key=lambda section: section.order) if preceding else None
