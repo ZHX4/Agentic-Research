@@ -21,7 +21,7 @@ class FullTextManifest(BaseModel):
 
     paper_id: str = Field(min_length=1)
     source: str = Field(min_length=1)
-    requested_url: HttpUrl
+    requested_url: HttpUrl | None = None
     final_url: HttpUrl | None = None
     media_type: Literal["application/pdf", "text/html", "unknown"]
     status: Literal["downloaded", "not_found", "failed"]
@@ -54,7 +54,13 @@ class FullTextAcquirer:
     def acquire(self, paper: Paper) -> FullTextManifest:
         candidates = _candidate_urls(paper)
         if not candidates:
-            raise ValueError(f"No full-text candidate URL available for {paper.paper_id}")
+            return FullTextManifest(
+                paper_id=paper.paper_id,
+                source="none",
+                media_type="unknown",
+                status="failed",
+                error=f"No full-text candidate URL available for {paper.paper_id}",
+            )
 
         last_error: str | None = None
         for source, url in candidates:
