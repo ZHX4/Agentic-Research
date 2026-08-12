@@ -43,9 +43,13 @@ Those belong to later phases in `docs/roadmap.md`.
 
 ## Source assumptions
 
-OpenAlex currently requires an API key for the Works API. Its documentation supports search, filters, `per_page`, and cursor pagination; deep pagination should use cursor paging rather than walking page numbers. citeturn623235search1turn623235search2
+OpenAlex Works documentation: https://developers.openalex.org/api-reference/works/list-works
 
-Semantic Scholar exposes a public Academic Graph API. Its documentation describes search pagination and recommends API keys and conservative request rates; authenticated users start with an individual 1 RPS rate, while unauthenticated traffic is shared and may be throttled. The client therefore defaults to a one-second minimum interval and allows an API key. citeturn782820search0turn782820search3
+OpenAlex pagination documentation: https://developers.openalex.org/guides/page-through-results
+
+Semantic Scholar API overview: https://webflow.semanticscholar.org/product/api
+
+Semantic Scholar API tutorial and pagination/rate-limit guidance: https://webflow.semanticscholar.org/product/api/tutorial
 
 The arXiv adapter uses the public Atom query endpoint and a conservative three-second minimum interval configured by default. The interval is a client-side safety default and is not treated as an official service limit.
 
