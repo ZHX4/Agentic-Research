@@ -57,9 +57,10 @@ class FullTextAcquirer:
             return FullTextManifest(
                 paper_id=paper.paper_id,
                 source="none",
+                requested_url=None,
                 media_type="unknown",
-                status="failed",
-                error=f"No full-text candidate URL available for {paper.paper_id}",
+                status="not_found",
+                error="No candidate full-text URL available",
             )
 
         last_error: str | None = None
@@ -139,7 +140,11 @@ def _media_type(content_type: str, path: str) -> Literal["application/pdf", "tex
     return "unknown"
 
 
-def _parse_pdf(paper_id: str, path: Path, media_type: Literal["application/pdf", "text/html", "unknown"]) -> ParsedDocument:
+def _parse_pdf(
+    paper_id: str,
+    path: Path,
+    media_type: Literal["application/pdf", "text/html", "unknown"],
+) -> ParsedDocument:
     with fitz.open(path) as document:
         text = "\n\n".join(page.get_text("text") for page in document)
         title = document.metadata.get("title") or None
@@ -153,7 +158,11 @@ def _parse_pdf(paper_id: str, path: Path, media_type: Literal["application/pdf",
         )
 
 
-def _parse_html(paper_id: str, path: Path, media_type: Literal["application/pdf", "text/html", "unknown"]) -> ParsedDocument:
+def _parse_html(
+    paper_id: str,
+    path: Path,
+    media_type: Literal["application/pdf", "text/html", "unknown"],
+) -> ParsedDocument:
     soup = BeautifulSoup(path.read_bytes(), "html.parser")
     for tag in soup(["script", "style", "noscript", "template"]):
         tag.decompose()
