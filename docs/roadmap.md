@@ -51,14 +51,19 @@
 - [x] dedicated hypothesis CLI
 - [x] offline regression tests
 
-## Phase 7 — Scientific execution
-- experiment planner
-- falsification planning
-- Docker sandbox
-- dataset manifests
-- multi-seed execution
-- metrics and artifact collection
-- experiment search tree
+## Phase 7 — Scientific execution (implemented)
+- [x] experiment planner
+- [x] falsification planning
+- [x] reproducible code/dataset manifests and hash verification
+- [x] restricted Docker sandbox
+- [x] network isolation and resource limits
+- [x] multi-seed execution
+- [x] structured metrics collection
+- [x] stdout/stderr and artifact hashing
+- [x] explicit falsification evaluation
+- [x] experiment search tree
+- [x] dedicated execution CLI
+- [x] offline regression tests
 
 ## Phase 8 — Evaluation
 - retrieval benchmark
