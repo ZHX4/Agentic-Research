@@ -2,6 +2,7 @@ from pathlib import Path
 
 import fitz
 
+from agentic_research.intelligence.calibration import CalibrationExample, IsotonicCalibrator
 from agentic_research.intelligence.pipeline import extract_paper_intelligence
 from agentic_research.schemas import Paper
 
@@ -36,5 +37,21 @@ def test_end_to_end_pipeline(tmp_path: Path) -> None:
     assert extraction.citation_edges
     assert extraction.claims
     assert extraction.claim_links
+    assert enriched.evidence
+    evidence_ids = {item.evidence_id for item in enriched.evidence}
+    assert all(link.evidence_id in evidence_ids for link in extraction.claim_links)
     assert enriched.metadata["phase2_extraction"]["field_values_are_candidates"] is True
     assert all(claim.section_id != extraction.sections[-1].section_id for claim in extraction.claims)
+
+
+def test_pipeline_can_apply_calibrated_confidence(tmp_path: Path) -> None:
+    pdf = tmp_path / "paper.pdf"
+    _make_paper_pdf(pdf)
+    paper = Paper(paper_id="p1", title="A Study on Retrieval", year=2025)
+    calibrator = IsotonicCalibrator.fit([
+        CalibrationExample(raw_confidence=0.1, correct=False),
+        CalibrationExample(raw_confidence=0.9, correct=True),
+    ])
+    enriched, extraction = extract_paper_intelligence(paper, pdf, calibrator=calibrator)
+    assert enriched.metadata["phase2_extraction"]["calibration_applied"] is True
+    assert all(claim.calibrated_confidence is not None for claim in extraction.claims)
