@@ -58,12 +58,14 @@ class ArxivAdapter(LiteratureRetriever):
                 break
             for entry in entries:
                 paper = _paper_from_entry(entry)
+                if query.temporal_cutoff is not None and (
+                    paper.year is None or paper.year > query.temporal_cutoff
+                ):
+                    continue
                 if paper.year is not None:
                     if query.year_from is not None and paper.year < query.year_from:
                         continue
                     if query.year_to is not None and paper.year > query.year_to:
-                        continue
-                    if query.temporal_cutoff is not None and paper.year > query.temporal_cutoff:
                         continue
                 results.append(
                     SearchHit(
