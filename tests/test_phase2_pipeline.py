@@ -36,7 +36,9 @@ def test_end_to_end_pipeline(tmp_path: Path) -> None:
     assert extraction.references[0].doi == "10.1234/xyz"
     assert extraction.citation_edges
     assert extraction.claims
+    assert extraction.evidence
     assert extraction.claim_links
+    assert len(extraction.claims) == len(extraction.evidence) == len(extraction.claim_links)
     assert enriched.evidence
     evidence_ids = {item.evidence_id for item in enriched.evidence}
     assert all(link.evidence_id in evidence_ids for link in extraction.claim_links)
@@ -55,3 +57,4 @@ def test_pipeline_can_apply_calibrated_confidence(tmp_path: Path) -> None:
     enriched, extraction = extract_paper_intelligence(paper, pdf, calibrator=calibrator)
     assert enriched.metadata["phase2_extraction"]["calibration_applied"] is True
     assert all(claim.calibrated_confidence is not None for claim in extraction.claims)
+    assert all(item.confidence == claim.calibrated_confidence for item, claim in zip(extraction.evidence, extraction.claims, strict=True))
