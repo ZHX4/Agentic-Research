@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from collections import OrderedDict
 from dataclasses import dataclass
+from sqlite3 import Row
 from typing import Iterable
 
 from agentic_research.literature.service import LiteratureService
 from agentic_research.retrieval.contracts import SearchQuery
+from agentic_research.schemas import Paper
 from agentic_research.schemas.gap import GapCandidate, GapStatus
 from agentic_research.schemas.phase3 import RetrievalFilters
 from agentic_research.schemas.phase5 import (
@@ -40,6 +43,8 @@ _STOPWORDS = {
     "used", "use", "show", "shows", "result", "results", "method", "approach", "model", "paper",
 }
 
+_SEVERITY_ORDER = {"low": 0, "medium": 1, "high": 2}
+
 
 @dataclass(frozen=True)
 class _SearchRecord:
@@ -47,7 +52,7 @@ class _SearchRecord:
     paper_title: str
     source: str
     query: str
-    paper: object
+    paper: Paper
 
 
 def _normalize(text: str) -> str:
@@ -76,26 +81,32 @@ def _field_overlap(candidate_values: list[str], paper_values: list[str]) -> floa
     paper_tokens = {_normalize(value) for value in paper_values if value}
     if not candidate_tokens:
         return 0.0
-    return max((_jaccard(_token_set(value), _token_set(other)) for value in candidate_tokens for other in paper_tokens), default=0.0)
+    return max(
+        (_jaccard(_token_set(value), _token_set(other)) for value in candidate_tokens for other in paper_tokens),
+        default=0.0,
+    )
 
 
-def _paper_text(paper: object) -> str:
-    title = str(getattr(paper, "title", ""))
-    abstract = str(getattr(paper, "abstract", "") or "")
-    methods = " ".join(getattr(paper, "methods", []) or [])
-    tasks = " ".join(getattr(paper, "tasks", []) or [])
-    datasets = " ".join(getattr(paper, "datasets", []) or [])
-    limitations = " ".join(getattr(paper, "limitations", []) or [])
-    return " ".join((title, abstract, methods, tasks, datasets, limitations))
+def _paper_text(paper: Paper) -> str:
+    return " ".join(
+        (
+            paper.title,
+            paper.abstract or "",
+            " ".join(paper.methods),
+            " ".join(paper.tasks),
+            " ".join(paper.datasets),
+            " ".join(paper.limitations),
+        )
+    )
 
 
-def _exact_combination(candidate: GapCandidate, paper: object) -> bool:
+def _exact_combination(candidate: GapCandidate, paper: Paper) -> bool:
     candidate_method = _normalize(candidate.method or "")
     candidate_dataset = _normalize(candidate.dataset or "")
     candidate_task = _normalize(candidate.task or "")
-    methods = {_normalize(value) for value in getattr(paper, "methods", []) or []}
-    datasets = {_normalize(value) for value in getattr(paper, "datasets", []) or []}
-    tasks = {_normalize(value) for value in getattr(paper, "tasks", []) or []}
+    methods = {_normalize(value) for value in paper.methods}
+    datasets = {_normalize(value) for value in paper.datasets}
+    tasks = {_normalize(value) for value in paper.tasks}
 
     method_ok = bool(candidate_method) and candidate_method in methods
     dataset_ok = bool(candidate_dataset) and candidate_dataset in datasets
@@ -114,7 +125,9 @@ def expand_queries(candidate: GapCandidate, max_queries: int) -> list[tuple[str,
     probes: OrderedDict[str, str] = OrderedDict()
     if candidate.statement:
         probes[candidate.statement.strip()] = "Original candidate statement"
-        probes[_normalize(candidate.statement)] = "Normalized statement variant"
+        normalized = _normalize(candidate.statement)
+        if normalized:
+            probes[normalized] = "Normalized statement variant"
     if terms:
         probes[" ".join(f'"{term}"' for term in terms)] = "Exact entity combination"
         probes[" ".join(terms)] = "Unquoted entity combination"
@@ -125,19 +138,15 @@ def expand_queries(candidate: GapCandidate, max_queries: int) -> list[tuple[str,
     if candidate.dataset and candidate.task:
         probes[f'"{candidate.dataset}" "{candidate.task}"'] = "Dataset/task challenge"
 
-    aliases: list[tuple[str, str]] = []
     for term in terms:
         alias = _ALIAS_GROUPS.get(_normalize(term))
         if alias:
-            aliases.append((term, alias))
-    for original, alias in aliases:
-        for query in list(probes.keys()):
-            expanded = re.sub(re.escape(original), alias, query, flags=re.IGNORECASE)
-            if expanded != query:
-                probes[expanded] = f"Terminology expansion: {original} → {alias}"
+            for query in list(probes.keys()):
+                expanded = re.sub(re.escape(term), alias, query, flags=re.IGNORECASE)
+                if expanded != query:
+                    probes[expanded] = f"Terminology expansion: {term} → {alias}"
 
-    result = [(query, rationale) for query, rationale in probes.items() if query.strip()]
-    return result[:max_queries]
+    return [(query, rationale) for query, rationale in probes.items() if query.strip()][:max_queries]
 
 
 class NoveltyVerifier:
@@ -151,11 +160,7 @@ class NoveltyVerifier:
         self.world = world
         self.literature_service = literature_service
 
-    def verify(
-        self,
-        candidate: GapCandidate,
-        config: NoveltyVerificationConfig | None = None,
-    ) -> GapVerificationResult:
+    def verify(self, candidate: GapCandidate, config: NoveltyVerificationConfig | None = None) -> GapVerificationResult:
         cfg = config or NoveltyVerificationConfig()
         if candidate.status != GapStatus.CANDIDATE:
             raise ValueError("Phase 5 accepts only Phase 4 candidates")
@@ -173,8 +178,10 @@ class NoveltyVerifier:
         records: list[_SearchRecord] = []
         limitations: list[str] = []
         searched_sources: set[str] = set()
+        successful_probes = 0
 
         for (query, _), probe in zip(probes, query_probes, strict=True):
+            probe_succeeded = False
             if cfg.include_local and self.world is not None:
                 try:
                     rows = self.world.lexical_search(
@@ -182,6 +189,7 @@ class NoveltyVerifier:
                         limit=cfg.local_results_per_query,
                         filters=RetrievalFilters(temporal_cutoff=cfg.temporal_cutoff).model_dump(),
                     )
+                    probe_succeeded = True
                     paper_ids = sorted({str(row["paper_id"]) for row in rows})
                     if paper_ids:
                         placeholders = ",".join("?" for _ in paper_ids)
@@ -190,25 +198,29 @@ class NoveltyVerifier:
                             paper_ids,
                         ).fetchall()
                         for row in db_rows:
-                            records.append(_SearchRecord(row["paper_id"], row["title"], str(row["source"] or "local"), query, self._paper_from_row(row)))
+                            records.append(
+                                _SearchRecord(
+                                    row["paper_id"], row["title"], str(row["source"] or "local"), query, self._paper_from_row(row)
+                                )
+                            )
                         searched_sources.add("local-world-model")
-                except Exception as exc:  # defensive boundary; external verification must report, not crash
+                except Exception as exc:
                     limitations.append(f"Local search failed for probe {probe.probe_id}: {type(exc).__name__}")
 
             if cfg.include_external and self.literature_service is not None:
                 try:
                     hits = self.literature_service.search(
-                        SearchQuery(
-                            text=query,
-                            limit=cfg.external_results_per_query,
-                            temporal_cutoff=cfg.temporal_cutoff,
-                        )
+                        SearchQuery(text=query, limit=cfg.external_results_per_query, temporal_cutoff=cfg.temporal_cutoff)
                     )
+                    probe_succeeded = True
                     for hit in hits:
                         records.append(_SearchRecord(hit.paper.paper_id, hit.paper.title, hit.source, query, hit.paper))
                         searched_sources.add(hit.source)
-                except Exception as exc:  # defensive boundary; provider failures are uncertainty, not novelty proof
+                except Exception as exc:
                     limitations.append(f"External search failed for probe {probe.probe_id}: {type(exc).__name__}")
+
+            if probe_succeeded:
+                successful_probes += 1
 
         unique: OrderedDict[str, _SearchRecord] = OrderedDict()
         for record in records:
@@ -218,12 +230,12 @@ class NoveltyVerifier:
         counterevidence: list[Counterevidence] = []
         for record in unique.values():
             paper = record.paper
-            if cfg.temporal_cutoff is not None and getattr(paper, "year", None) is not None and paper.year > cfg.temporal_cutoff:
+            if cfg.temporal_cutoff is not None and paper.year is not None and paper.year > cfg.temporal_cutoff:
                 continue
-            method_overlap = _field_overlap([candidate.method or ""], list(getattr(paper, "methods", []) or []))
-            dataset_overlap = _field_overlap([candidate.dataset or ""], list(getattr(paper, "datasets", []) or []))
-            task_overlap = _field_overlap([candidate.task or ""], list(getattr(paper, "tasks", []) or []))
-            title_overlap = _jaccard(_token_set(candidate.statement), _token_set(getattr(paper, "title", "")))
+            method_overlap = _field_overlap([candidate.method or ""], paper.methods)
+            dataset_overlap = _field_overlap([candidate.dataset or ""], paper.datasets)
+            task_overlap = _field_overlap([candidate.task or ""], paper.tasks)
+            title_overlap = _jaccard(_token_set(candidate.statement), _token_set(paper.title))
             semantic_overlap = _jaccard(_token_set(candidate.statement), _token_set(_paper_text(paper)))
             exact = _exact_combination(candidate, paper)
             similarity = max(
@@ -242,25 +254,27 @@ class NoveltyVerifier:
             else:
                 continue
 
-            match = PriorWorkMatch(
-                match_id=_stable_id("match", candidate.gap_id, record.paper_id),
-                paper=paper,
-                source=record.source,
-                query=record.query,
-                similarity=round(similarity, 6),
-                method_overlap=round(method_overlap, 6),
-                dataset_overlap=round(dataset_overlap, 6),
-                task_overlap=round(task_overlap, 6),
-                title_overlap=round(title_overlap, 6),
-                exact_combination=exact,
-                challenge_type=challenge_type,
-                rationale=(
-                    "Directly reproduces the candidate combination." if exact else
-                    "Closely overlaps the candidate research configuration." if challenge_type == "near" else
-                    "Provides contextual evidence relevant to the candidate gap."
-                ),
+            rationale = (
+                "Directly reproduces the candidate combination." if exact else
+                "Closely overlaps the candidate research configuration." if challenge_type == "near" else
+                "Provides contextual evidence relevant to the candidate gap."
             )
-            matches.append(match)
+            matches.append(
+                PriorWorkMatch(
+                    match_id=_stable_id("match", candidate.gap_id, record.paper_id),
+                    paper=paper,
+                    source=record.source,
+                    query=record.query,
+                    similarity=round(similarity, 6),
+                    method_overlap=round(method_overlap, 6),
+                    dataset_overlap=round(dataset_overlap, 6),
+                    task_overlap=round(task_overlap, 6),
+                    title_overlap=round(title_overlap, 6),
+                    exact_combination=exact,
+                    challenge_type=challenge_type,
+                    rationale=rationale,
+                )
+            )
             if challenge_type in {"direct", "near"}:
                 counterevidence.append(
                     Counterevidence(
@@ -271,19 +285,18 @@ class NoveltyVerifier:
                         claim=paper.title,
                         severity=severity,
                         supports_gap=False,
-                        rationale=match.rationale,
+                        rationale=rationale,
                     )
                 )
 
         matches.sort(key=lambda item: (-item.similarity, item.paper.paper_id))
-        counterevidence.sort(key=lambda item: (item.severity, item.paper_id), reverse=True)
+        counterevidence.sort(key=lambda item: (-_SEVERITY_ORDER[item.severity], item.paper_id))
 
-        unique_queries = len({record.query for record in records})
-        if cfg.include_external and cfg.include_local and unique_queries >= cfg.min_broad_searches:
+        if successful_probes >= cfg.min_broad_searches and len(searched_sources) >= 2:
             coverage = "broad"
-        elif unique_queries >= cfg.min_broad_searches or len(searched_sources) >= 2:
+        elif successful_probes >= cfg.min_broad_searches or len(searched_sources) >= 2:
             coverage = "moderate"
-        elif unique_queries > 0:
+        elif successful_probes > 0:
             coverage = "limited"
         else:
             coverage = "none"
@@ -313,7 +326,7 @@ class NoveltyVerifier:
 
         if not records:
             limitations.append("No search results were retrieved; this is not evidence of novelty.")
-        if "local-world-model" not in searched_sources:
+        if "local-world-model" not in searched_sources and cfg.include_local:
             limitations.append("The local indexed corpus was not searched or returned no usable results.")
         if cfg.include_external and not any(source != "local-world-model" for source in searched_sources):
             limitations.append("No external literature provider returned usable results.")
@@ -330,7 +343,7 @@ class NoveltyVerifier:
         )
 
         return GapVerificationResult(
-            verification_id=_stable_id("verification", candidate.gap_id, str(cfg.model_dump(mode="json"))),
+            verification_id=_stable_id("verification", candidate.gap_id, json.dumps(cfg.model_dump(mode="json"), sort_keys=True)),
             gap_id=candidate.gap_id,
             original_status=candidate.status,
             resulting_status=resulting_status,
@@ -348,11 +361,7 @@ class NoveltyVerifier:
         )
 
     @staticmethod
-    def _paper_from_row(row: object):
-        import json
-
-        from agentic_research.schemas import Paper
-
+    def _paper_from_row(row: Row) -> Paper:
         metadata = json.loads(row["metadata_json"]) if row["metadata_json"] else {}
         return Paper(
             paper_id=row["paper_id"],
@@ -363,16 +372,12 @@ class NoveltyVerifier:
             metadata=metadata,
         )
 
-    def verify_batch(
-        self,
-        candidates: list[GapCandidate],
-        config: NoveltyVerificationConfig | None = None,
-    ) -> NoveltyVerificationReport:
+    def verify_batch(self, candidates: list[GapCandidate], config: NoveltyVerificationConfig | None = None) -> NoveltyVerificationReport:
         cfg = config or NoveltyVerificationConfig()
         results = [self.verify(candidate, cfg) for candidate in candidates]
         run_id = _stable_id(
             "novelty-run",
-            str(cfg.model_dump(mode="json")),
+            json.dumps(cfg.model_dump(mode="json"), sort_keys=True),
             *sorted(candidate.gap_id for candidate in candidates),
         )
         return NoveltyVerificationReport(
