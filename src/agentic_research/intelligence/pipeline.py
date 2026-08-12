@@ -14,7 +14,7 @@ from agentic_research.intelligence.sections import detect_sections
 from agentic_research.schemas import Evidence, Paper
 from agentic_research.schemas.paper_intelligence import StructuredExtraction
 
-EXTRACTOR_VERSION = "phase2-native-1.0"
+EXTRACTOR_VERSION = "phase2-native-1.1"
 
 
 def _sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
@@ -55,19 +55,31 @@ def extract_paper_intelligence(
     references = extract_references(paper, references_text) if references_text else []
 
     body_chunks = [
-        chunk for chunk in chunks
+        chunk
+        for chunk in chunks
         if not (reference_section and chunk.section_id == reference_section.section_id)
     ]
     citation_edges = extract_citation_edges(paper, body_chunks, references)
     claims, evidence, links = extract_claims(paper.paper_id, body_chunks)
+
+    if len(claims) != len(evidence) or len(claims) != len(links):
+        raise RuntimeError("Claim, evidence, and provenance-link counts must remain aligned")
+
+    calibration_applied = calibrator is not None
     if calibrator is not None:
-        for claim, item in zip(claims, evidence, strict=False):
+        for claim, item in zip(claims, evidence, strict=True):
             calibrated = calibrator.transform(claim.raw_confidence)
             claim.calibrated_confidence = calibrated
             item.confidence = calibrated
 
     fields = extract_fields(body_chunks, sections)
-    enriched_paper = _merge_fields_and_evidence(paper, fields, evidence, document_digest, calibrator is not None)
+    enriched_paper = _merge_fields_and_evidence(
+        paper,
+        fields,
+        evidence,
+        document_digest,
+        calibration_applied,
+    )
 
     extraction_id = hashlib.sha1(
         f"{paper.paper_id}|{document_digest}|{EXTRACTOR_VERSION}".encode("utf-8")
@@ -81,6 +93,7 @@ def extract_paper_intelligence(
         figures=figures,
         references=references,
         citation_edges=citation_edges,
+        evidence=evidence,
         claims=claims,
         claim_links=links,
         extractor_version=EXTRACTOR_VERSION,
