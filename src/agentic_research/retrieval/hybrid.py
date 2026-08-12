@@ -43,7 +43,7 @@ class HybridRetriever:
         lexical_score_by_id = {row["chunk_id"]: 1.0 / rank for rank, row in enumerate(lexical_rows, start=1)}
         row_by_id: dict[str, sqlite3.Row] = {row["chunk_id"]: row for row in [*lexical_rows, *dense_rows]}
 
-        for chunk_id in set(lexical_rank) | set(dense_rank):
+        for chunk_id in sorted(set(lexical_rank) | set(dense_rank)):
             row = row_by_id[chunk_id]
             fused = 0.0
             reasons: list[str] = []
@@ -91,5 +91,8 @@ class HybridRetriever:
         import struct
         if len(query_vector) != dimension:
             raise ValueError(f"Embedding dimension mismatch: query={len(query_vector)}, index={dimension}")
+        expected_bytes = dimension * 4
+        if len(blob) != expected_bytes:
+            raise ValueError(f"Corrupt vector blob: expected {expected_bytes} bytes, got {len(blob)}")
         values = struct.unpack(f"<{dimension}f", blob)
         return cosine_similarity(query_vector, values)
