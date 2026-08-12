@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -18,28 +17,7 @@ GapSignalType = Literal[
     "graph_negative_space",
 ]
 
-_ENTITY_TYPES = {
-    "method": "method",
-    "dataset": "dataset",
-    "task": "task",
-    "metric": "metric",
-    "baseline": "baseline",
-}
-
-
-def _canonical_entity_value(value: str) -> str:
-    return " ".join(value.casefold().split())
-
-
-def canonical_entity_node_id(kind: str, value: str) -> str:
-    """Return the same stable entity-node ID scheme used by the Phase 3 world model."""
-    if kind not in _ENTITY_TYPES:
-        raise ValueError(f"Unsupported entity kind: {kind}")
-    normalized = _canonical_entity_value(value)
-    if not normalized:
-        raise ValueError("Entity value must not be empty")
-    digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:20]
-    return f"{kind}:{digest}"
+_ENTITY_KINDS = {"method", "dataset", "task", "metric", "baseline"}
 
 
 class GapDiscoveryConfig(BaseModel):
@@ -77,6 +55,9 @@ class GapSignal(BaseModel):
     gap_type: GapSignalType
     statement: str = Field(min_length=1)
     paper_ids: list[str] = Field(default_factory=list)
+    # Only IDs that are directly resolvable from the stored graph belong here.
+    # Entity labels are kept separately in entity_values until Phase 5 resolves
+    # them against the canonical world-model nodes.
     node_ids: list[str] = Field(default_factory=list)
     entity_values: dict[str, str] = Field(default_factory=dict)
     support_count: int = Field(ge=0)
@@ -84,16 +65,14 @@ class GapSignal(BaseModel):
     provenance: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def align_entity_provenance(self) -> "GapSignal":
-        """Normalize entity node IDs to the canonical Phase 3 world-model scheme."""
-        generated = [
-            canonical_entity_node_id(kind, value)
-            for kind, value in sorted(self.entity_values.items())
-            if kind in _ENTITY_TYPES and value.strip()
-        ]
-        if generated:
-            non_entity_ids = [node_id for node_id in self.node_ids if node_id.split(":", 1)[0] not in _ENTITY_TYPES]
-            self.node_ids = sorted(dict.fromkeys([*non_entity_ids, *generated]))
+    def remove_unresolved_entity_ids(self) -> "GapSignal":
+        self.node_ids = sorted(
+            dict.fromkeys(
+                node_id
+                for node_id in self.node_ids
+                if node_id.split(":", 1)[0] not in _ENTITY_KINDS
+            )
+        )
         return self
 
 
