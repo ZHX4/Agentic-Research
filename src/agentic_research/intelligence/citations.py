@@ -11,7 +11,10 @@ from agentic_research.schemas.paper_intelligence import CitationEdge, CitationRe
 
 _NUMERIC_REF = re.compile(r"\[(\d{1,4})\]")
 _NUMERIC_RANGE = re.compile(r"\[(\d{1,4})\s*[-–]\s*(\d{1,4})\]")
-_AUTHOR_YEAR = re.compile(r"\b([A-Z][A-Za-z'’-]{1,40})(?:\s+et\s+al\.)?\s*[,(]\s*(18\d{2}|19\d{2}|20\d{2}|21\d{2})\b")
+_AUTHOR_YEAR = re.compile(
+    r"\b([A-Z][A-Za-z'’-]{1,40})(?:\s+et\s+al\.)?"
+    r"(?:\s*,\s*|\s+\(|\s+)(18\d{2}|19\d{2}|20\d{2}|21\d{2})\b"
+)
 _DOI = re.compile(r"\b10\.\d{4,9}/[-._;()/:a-z0-9]+", re.I)
 _ARXIV = re.compile(r"\b(?:arxiv:)?(\d{4}\.\d{4,5})(?:v\d+)?\b", re.I)
 _YEAR = re.compile(r"\b(18\d{2}|19\d{2}|20\d{2}|21\d{2})\b")
@@ -61,7 +64,12 @@ def extract_references(paper: Paper, references_text: str) -> list[CitationRefer
                 year=int(year_match.group(1)) if year_match else None,
                 doi=normalize_doi(doi_match.group(0)) if doi_match else None,
                 arxiv_id=normalize_arxiv_id(arxiv_match.group(1)) if arxiv_match else None,
-                extraction_confidence=_reference_confidence(raw_text, bool(doi_match or arxiv_match), bool(year_match), bool(author)),
+                extraction_confidence=_reference_confidence(
+                    raw_text,
+                    bool(doi_match or arxiv_match),
+                    bool(year_match),
+                    bool(author),
+                ),
             )
         )
     return references
@@ -80,21 +88,31 @@ def extract_citation_edges(
 
     edges: dict[str, CitationEdge] = {}
     for chunk in chunks:
-        markers = [(number, marker) for number, marker in _citation_numbers(chunk.text)]
-        for number, marker in markers:
+        for number, marker in _citation_numbers(chunk.text):
             ref = by_number.get(number)
             if ref is None:
                 continue
-            edges[_edge_key(paper.paper_id, ref.reference_id, chunk.chunk_id)] = _build_edge(paper, ref, chunk.chunk_id, marker)
+            edges[_edge_key(paper.paper_id, ref.reference_id, chunk.chunk_id)] = _build_edge(
+                paper, ref, chunk.chunk_id, marker, confidence=0.95
+            )
 
         for author, year, marker in _author_year_citations(chunk.text):
             candidates = by_author_year.get((author.lower(), year), [])
             for ref in candidates[:5]:
-                edges[_edge_key(paper.paper_id, ref.reference_id, chunk.chunk_id)] = _build_edge(paper, ref, chunk.chunk_id, marker)
+                edges[_edge_key(paper.paper_id, ref.reference_id, chunk.chunk_id)] = _build_edge(
+                    paper, ref, chunk.chunk_id, marker, confidence=0.88
+                )
     return list(edges.values())
 
 
-def _build_edge(paper: Paper, ref: CitationReference, chunk_id: str, marker: str) -> CitationEdge:
+def _build_edge(
+    paper: Paper,
+    ref: CitationReference,
+    chunk_id: str,
+    marker: str,
+    *,
+    confidence: float,
+) -> CitationEdge:
     edge_id = _edge_key(paper.paper_id, ref.reference_id, chunk_id)
     return CitationEdge(
         edge_id=f"edge-{edge_id}",
@@ -103,7 +121,7 @@ def _build_edge(paper: Paper, ref: CitationReference, chunk_id: str, marker: str
         cited_paper_id=_resolved_cited_paper_id(ref),
         citation_context_chunk_id=chunk_id,
         marker=marker,
-        confidence=0.93 if ref.order is not None else 0.82,
+        confidence=confidence,
     )
 
 
@@ -128,11 +146,14 @@ def _citation_numbers(text: str) -> list[tuple[int, str]]:
 
 
 def _author_year_citations(text: str) -> list[tuple[str, int, str]]:
-    return [(match.group(1), int(match.group(2)), match.group(0)) for match in _AUTHOR_YEAR.finditer(text)]
+    return [
+        (match.group(1), int(match.group(2)), match.group(0))
+        for match in _AUTHOR_YEAR.finditer(text)
+    ]
 
 
 def _guess_first_author(raw: str) -> str | None:
-    prefix = re.split(r"\b(?:\d{4}|doi:|https?://|arxiv:)\b", raw, maxsplit=1, flags=re.I)[0]
+    prefix = re.split(r"\d{4}|doi:|https?://|arxiv:", raw, maxsplit=1, flags=re.I)[0]
     surname_match = re.search(r"(?:^|[,.]\s*)([A-Z][A-Za-z'’-]{1,40})\b", prefix)
     return surname_match.group(1) if surname_match else None
 
