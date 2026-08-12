@@ -1,6 +1,6 @@
 project:
   name: Agentic-Research
-  version: 0.3.0
+  version: 0.4.0
 
 research:
   domain: "AI/ML research"
@@ -27,6 +27,7 @@ providers:
     - semantic_scholar
     - arxiv
   embeddings: disabled
+  reranker: lexical
 
 literature:
   request_timeout_seconds: 30
@@ -35,5 +36,13 @@ literature:
   arxiv_min_interval_seconds: 3.0
   fulltext_min_interval_seconds: 3.0
 
+retrieval:
+  database: "artifacts/world-model.sqlite"
+  embedding_provider: "hash"
+  embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+  reranker: "lexical"
+  reranker_model: "cross-encoder/ms-marco-MiniLM-L6-v2"
+  rrf_k: 60
+
 storage:
-  mode: jsonl
+  mode: sqlite-world-model
