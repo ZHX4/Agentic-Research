@@ -1,0 +1,4 @@
+{"paper_id":"demo-001","title":"Retriever A for Question Answering","year":2024,"authors":["Example Author 1"],"methods":["Retriever-A"],"tasks":["retrieval-augmented question answering"],"datasets":["Dataset-Alpha"],"metrics":["EM","F1"]}
+{"paper_id":"demo-002","title":"Retriever B for Question Answering","year":2024,"authors":["Example Author 2"],"methods":["Retriever-B"],"tasks":["retrieval-augmented question answering"],"datasets":["Dataset-Alpha"],"metrics":["EM","F1"]}
+{"paper_id":"demo-003","title":"Retriever B on a Transfer Dataset","year":2025,"authors":["Example Author 3"],"methods":["Retriever-B"],"tasks":["retrieval-augmented question answering"],"datasets":["Dataset-Beta"],"metrics":["EM","F1"]}
+{"paper_id":"demo-004","title":"Retriever C on a Transfer Dataset","year":2025,"authors":["Example Author 4"],"methods":["Retriever-C"],"tasks":["retrieval-augmented question answering"],"datasets":["Dataset-Beta"],"metrics":["EM","F1"]}
