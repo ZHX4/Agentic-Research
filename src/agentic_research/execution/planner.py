@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from typing import Literal
 
 from agentic_research.schemas.phase6 import Hypothesis
 from agentic_research.schemas.phase7 import DatasetManifest, ExperimentSpec, FalsificationPlan, SandboxPolicy
@@ -21,11 +22,17 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def build_falsification_plan(hypothesis: Hypothesis, primary_metric: str, alpha: float = 0.05) -> FalsificationPlan:
+def build_falsification_plan(
+    hypothesis: Hypothesis,
+    primary_metric: str,
+    alpha: float = 0.05,
+    metric_direction: Literal["higher", "lower"] = "higher",
+) -> FalsificationPlan:
     return FalsificationPlan(
         plan_id="falsify:" + hashlib.sha256(hypothesis.hypothesis_id.encode()).hexdigest()[:20],
         hypothesis_id=hypothesis.hypothesis_id,
         primary_metric=primary_metric,
+        metric_direction=metric_direction,
         null_hypothesis=f"The proposed effect of hypothesis {hypothesis.hypothesis_id} is absent under the prespecified controls.",
         rejection_criteria=[
             hypothesis.falsification_condition,
@@ -45,6 +52,7 @@ def build_experiment_spec(
     command: list[str],
     datasets: list[DatasetManifest],
     primary_metric: str,
+    metric_direction: Literal["higher", "lower"] = "higher",
     seeds: list[int] | None = None,
     image: str = "python:3.11-slim",
     network_enabled: bool = False,
@@ -59,7 +67,7 @@ def build_experiment_spec(
     if not selected_seeds or any(seed < 0 for seed in selected_seeds):
         raise ValueError("at least one non-negative seed is required")
     code_hash = sha256_file(code_path)
-    falsification = build_falsification_plan(hypothesis, primary_metric)
+    falsification = build_falsification_plan(hypothesis, primary_metric, metric_direction=metric_direction)
     experiment_id = "exp:" + hashlib.sha256(
         json.dumps(
             {
@@ -68,6 +76,7 @@ def build_experiment_spec(
                 "code_path": code_path.name,
                 "command": command,
                 "seeds": selected_seeds,
+                "metric_direction": metric_direction,
                 "datasets": [dataset.dataset_id for dataset in datasets],
             },
             sort_keys=True,
