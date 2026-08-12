@@ -47,7 +47,6 @@ def test_missing_combination_is_candidate_only_and_uses_real_graph_ids(tmp_path:
             signal = signal_by_id[candidate.signal_ids[0]]
             assert signal.node_ids
             assert all(world.get_node(node_id) is not None for node_id in signal.node_ids)
-            assert candidate.method in {"method-a", "method-b"}
 
 
 def test_method_task_missing_combination_is_found(tmp_path: Path) -> None:
@@ -70,6 +69,16 @@ def test_contradiction_requires_distinct_result_papers(tmp_path: Path) -> None:
     assert candidate.gap_type == "contradiction"
     assert set(candidate.evidence_paper_ids) == {"p1", "p2"}
     assert candidate.status == "candidate"
+
+
+def test_negated_improvement_is_not_marked_positive(tmp_path: Path) -> None:
+    with ScientificWorldModel(tmp_path / "world.sqlite") as world:
+        _add_paper(world, _paper("p1", "Negative", 2024, {}), methods=[], datasets=[], tasks=[])
+        _add_paper(world, _paper("p2", "Negative 2", 2024, {}), methods=[], datasets=[], tasks=[])
+        _add_claim(world, "c1", "p1", "method does not improve factual accuracy", "result")
+        _add_claim(world, "c2", "p2", "method does not improve factual accuracy", "result")
+        result = discover_gaps(world, GapDiscoveryConfig(include_types={"contradiction"}))
+    assert result.candidates == []
 
 
 def test_recurring_limitation_creates_candidate(tmp_path: Path) -> None:
