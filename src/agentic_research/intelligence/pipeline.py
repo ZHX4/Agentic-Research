@@ -10,7 +10,8 @@ from agentic_research.intelligence.citations import extract_citation_edges, extr
 from agentic_research.intelligence.chunking import chunk_blocks
 from agentic_research.intelligence.extraction import extract_claims, extract_fields
 from agentic_research.intelligence.layout import extract_figures, extract_tables, iter_text_blocks
-from agentic_research.schemas import Paper
+from agentic_research.intelligence.sections import detect_sections
+from agentic_research.schemas import Evidence, Paper
 from agentic_research.schemas.paper_intelligence import StructuredExtraction
 
 EXTRACTOR_VERSION = "phase2-native-1.0"
@@ -27,8 +28,6 @@ def extract_paper_intelligence(
         raise FileNotFoundError(pdf_path)
 
     blocks = iter_text_blocks(pdf_path)
-    from agentic_research.intelligence.sections import detect_sections
-
     sections = detect_sections(paper.paper_id, blocks)
     chunks = chunk_blocks(paper.paper_id, blocks, sections)
     tables = extract_tables(pdf_path, paper.paper_id)
@@ -45,9 +44,12 @@ def extract_paper_intelligence(
     reference_blocks = [block for block in blocks if block.order >= reference_section.order] if reference_section else []
     references_text = "\n".join(block.text for block in reference_blocks)
     references = extract_references(paper, references_text) if references_text else []
-    citation_edges = extract_citation_edges(paper, chunks, references)
 
-    body_chunks = [chunk for chunk in chunks if not (reference_section and chunk.section_id == reference_section.section_id)]
+    body_chunks = [
+        chunk for chunk in chunks
+        if not (reference_section and chunk.section_id == reference_section.section_id)
+    ]
+    citation_edges = extract_citation_edges(paper, body_chunks, references)
     claims, evidence, links = extract_claims(paper.paper_id, body_chunks)
     if calibrator is not None:
         for claim, item in zip(claims, evidence, strict=False):
@@ -79,7 +81,11 @@ def extract_paper_intelligence(
     return enriched_paper, extraction
 
 
-def _merge_fields_and_evidence(paper: Paper, fields: dict[str, list[str]], evidence) -> Paper:
+def _merge_fields_and_evidence(
+    paper: Paper,
+    fields: dict[str, list[str]],
+    evidence: list[Evidence],
+) -> Paper:
     enriched = paper.model_copy(deep=True)
     for field, values in fields.items():
         existing = list(getattr(enriched, field))
