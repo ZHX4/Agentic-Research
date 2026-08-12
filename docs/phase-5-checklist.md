@@ -17,7 +17,12 @@
 - [x] Deterministic verification IDs
 - [x] Batch verification report
 - [x] Dedicated verification CLI
-- [x] Offline regression tests
+- [x] Bounded full-text acquisition for high-priority prior works
+- [x] PDF deep verification through the Phase 2 structured pipeline
+- [x] HTML deep verification with same-context entity checks
+- [x] Serialized deep-evidence provenance and artifact hashes
+- [x] Required-deep-check safeguard against false novelty conclusions
+- [x] Offline regression tests, including full-text verifier tests
 - [x] Documentation of uncertainty and limitations
 - [x] Explicit Phase 5 / Phase 6 boundary
 
