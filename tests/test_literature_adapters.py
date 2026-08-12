@@ -40,6 +40,7 @@ def test_openalex_adapter_maps_response_and_cutoff() -> None:
                         "doi": "https://doi.org/10.1234/ABC",
                         "display_name": "A Test Paper",
                         "publication_year": 2024,
+                        "abstract_inverted_index": {"An": [0], "abstract": [1]},
                         "authorships": [{"author": {"display_name": "Alice"}}],
                         "primary_location": {"landing_page_url": "https://example.org/paper"},
                         "relevance_score": 0.9,
@@ -61,7 +62,22 @@ def test_openalex_adapter_maps_response_and_cutoff() -> None:
 
     assert len(hits) == 1
     assert hits[0].paper.doi == "10.1234/abc"
+    assert hits[0].paper.abstract == "An abstract"
     assert hits[0].paper.year == 2024
+
+
+def test_temporal_cutoff_excludes_unknown_years() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"meta": {"next_cursor": None}, "results": [{"id": "https://openalex.org/W1", "display_name": "Unknown"}]},
+            request=request,
+        )
+
+    with _client(handler) as client:
+        adapter = OpenAlexAdapter(api_key="test-key", client=client)
+        hits = adapter.search(SearchQuery(text="test", limit=10, temporal_cutoff=2025))
+    assert hits == []
 
 
 def test_semantic_scholar_adapter_maps_response() -> None:
@@ -97,13 +113,15 @@ def test_semantic_scholar_adapter_maps_response() -> None:
     assert hits[0].paper.metadata["open_access_pdf_url"].endswith("paper.pdf")
 
 
-def test_arxiv_adapter_parses_atom() -> None:
+def test_arxiv_adapter_parses_atom_without_double_encoding_query() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
+        query = request.url.params["search_query"]
+        assert query == 'all:"machine learning"'
         return httpx.Response(200, text=ARXIV_XML, request=request, headers={"content-type": "application/atom+xml"})
 
     with _client(handler) as client:
         adapter = ArxivAdapter(client=client)
-        hits = adapter.search(SearchQuery(text="test", limit=1, temporal_cutoff=2025))
+        hits = adapter.search(SearchQuery(text="machine learning", limit=1, temporal_cutoff=2025))
 
     assert hits[0].paper.arxiv_id == "2501.12345"
     assert hits[0].paper.title == "A Test Paper"
