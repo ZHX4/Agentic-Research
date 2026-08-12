@@ -65,16 +65,20 @@
 - [x] dedicated execution CLI
 - [x] offline regression tests
 
-## Phase 8 — Evaluation
-- retrieval benchmark
-- extraction benchmark
-- gap benchmark
-- novelty benchmark
-- temporal benchmark
-- human evaluation
-- baseline reproduction
-- ablations
-- cost/compute accounting
+## Phase 8 — Evaluation (implemented)
+- [x] retrieval benchmark
+- [x] extraction benchmark
+- [x] gap benchmark
+- [x] novelty benchmark
+- [x] dedicated temporal benchmark and leakage accounting
+- [x] multi-rater human evaluation
+- [x] baseline comparison with explicit metric direction
+- [x] ablation comparison
+- [x] cost/compute accounting
+- [x] deterministic bootstrap confidence intervals
+- [x] composite EvaluationReport
+- [x] dedicated evaluation CLI
+- [x] offline regression tests
 
 ## Phase 9 — Autonomous discovery
 - closed-loop research runs
