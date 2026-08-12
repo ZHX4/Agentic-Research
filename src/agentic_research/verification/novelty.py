@@ -107,11 +107,13 @@ def _exact_combination(candidate: GapCandidate, paper: Paper) -> bool:
     methods = {_normalize(value) for value in paper.methods}
     datasets = {_normalize(value) for value in paper.datasets}
     tasks = {_normalize(value) for value in paper.tasks}
-
-    method_ok = bool(candidate_method) and candidate_method in methods
-    dataset_ok = bool(candidate_dataset) and candidate_dataset in datasets
-    task_ok = not candidate_task or candidate_task in tasks
-    return method_ok and dataset_ok and task_ok
+    return (
+        bool(candidate_method)
+        and candidate_method in methods
+        and bool(candidate_dataset)
+        and candidate_dataset in datasets
+        and (not candidate_task or candidate_task in tasks)
+    )
 
 
 def _candidate_query_terms(candidate: GapCandidate) -> list[str]:
@@ -152,11 +154,7 @@ def expand_queries(candidate: GapCandidate, max_queries: int) -> list[tuple[str,
 class NoveltyVerifier:
     """Challenge Phase 4 candidates against local and external literature."""
 
-    def __init__(
-        self,
-        world: ScientificWorldModel | None = None,
-        literature_service: LiteratureService | None = None,
-    ) -> None:
+    def __init__(self, world: ScientificWorldModel | None = None, literature_service: LiteratureService | None = None) -> None:
         self.world = world
         self.literature_service = literature_service
 
@@ -230,7 +228,7 @@ class NoveltyVerifier:
         counterevidence: list[Counterevidence] = []
         for record in unique.values():
             paper = record.paper
-            if cfg.temporal_cutoff is not None and paper.year is not None and paper.year > cfg.temporal_cutoff:
+            if cfg.temporal_cutoff is not None and (paper.year is None or paper.year > cfg.temporal_cutoff):
                 continue
             method_overlap = _field_overlap([candidate.method or ""], paper.methods)
             dataset_overlap = _field_overlap([candidate.dataset or ""], paper.datasets)
@@ -243,14 +241,11 @@ class NoveltyVerifier:
                 max(method_overlap, dataset_overlap, task_overlap) * 0.65 + semantic_overlap * 0.35,
             )
             if exact:
-                challenge_type = "direct"
-                severity = "high"
+                challenge_type, severity = "direct", "high"
             elif similarity >= cfg.near_match_similarity:
-                challenge_type = "near"
-                severity = "medium"
+                challenge_type, severity = "near", "medium"
             elif similarity >= 0.45:
-                challenge_type = "contextual"
-                severity = "low"
+                challenge_type, severity = "contextual", "low"
             else:
                 continue
 
@@ -261,31 +256,18 @@ class NoveltyVerifier:
             )
             matches.append(
                 PriorWorkMatch(
-                    match_id=_stable_id("match", candidate.gap_id, record.paper_id),
-                    paper=paper,
-                    source=record.source,
-                    query=record.query,
-                    similarity=round(similarity, 6),
-                    method_overlap=round(method_overlap, 6),
-                    dataset_overlap=round(dataset_overlap, 6),
-                    task_overlap=round(task_overlap, 6),
-                    title_overlap=round(title_overlap, 6),
-                    exact_combination=exact,
-                    challenge_type=challenge_type,
-                    rationale=rationale,
+                    match_id=_stable_id("match", candidate.gap_id, record.paper_id), paper=paper, source=record.source,
+                    query=record.query, similarity=round(similarity, 6), method_overlap=round(method_overlap, 6),
+                    dataset_overlap=round(dataset_overlap, 6), task_overlap=round(task_overlap, 6), title_overlap=round(title_overlap, 6),
+                    exact_combination=exact, challenge_type=challenge_type, rationale=rationale,
                 )
             )
             if challenge_type in {"direct", "near"}:
                 counterevidence.append(
                     Counterevidence(
                         counterevidence_id=_stable_id("counter", candidate.gap_id, record.paper_id),
-                        paper_id=record.paper_id,
-                        source=record.source,
-                        query=record.query,
-                        claim=paper.title,
-                        severity=severity,
-                        supports_gap=False,
-                        rationale=rationale,
+                        paper_id=record.paper_id, source=record.source, query=record.query, claim=paper.title,
+                        severity=severity, supports_gap=False, rationale=rationale,
                     )
                 )
 
@@ -304,26 +286,20 @@ class NoveltyVerifier:
         direct = [match for match in matches if match.exact_combination and match.similarity >= cfg.min_direct_similarity]
         near = [match for match in matches if match.challenge_type == "near"]
         if direct:
-            verdict = "disproved"
-            confidence = min(0.99, max(match.similarity for match in direct))
-            resulting_status = GapStatus.DISPROVED if cfg.allow_status_transition else GapStatus.CANDIDATE
+            verdict, confidence, resulting_status = "disproved", min(0.99, max(match.similarity for match in direct)), GapStatus.DISPROVED
             rationale = "At least one sufficiently similar prior work directly matches the candidate combination."
         elif near:
-            verdict = "weakened"
-            confidence = min(0.90, max(match.similarity for match in near))
-            resulting_status = GapStatus.WEAKENED if cfg.allow_status_transition else GapStatus.CANDIDATE
+            verdict, confidence, resulting_status = "weakened", min(0.90, max(match.similarity for match in near)), GapStatus.WEAKENED
             rationale = "No direct match exceeded the direct threshold, but close prior work materially weakens the candidate gap."
         elif coverage in {"broad", "moderate"}:
-            verdict = "supported"
-            confidence = 0.55 if coverage == "moderate" else 0.65
-            resulting_status = GapStatus.SURVIVED if cfg.allow_status_transition else GapStatus.CANDIDATE
+            verdict, confidence, resulting_status = "supported", (0.55 if coverage == "moderate" else 0.65), GapStatus.SURVIVED
             rationale = "The candidate survived the configured adversarial search budget without a direct or near prior-work match."
         else:
-            verdict = "inconclusive"
-            confidence = 0.25
-            resulting_status = GapStatus.UNCERTAIN if cfg.allow_status_transition else GapStatus.CANDIDATE
+            verdict, confidence, resulting_status = "inconclusive", 0.25, GapStatus.UNCERTAIN
             rationale = "Search coverage was insufficient to support or reject the candidate gap."
 
+        if not cfg.allow_status_transition:
+            resulting_status = GapStatus.CANDIDATE
         if not records:
             limitations.append("No search results were retrieved; this is not evidence of novelty.")
         if "local-world-model" not in searched_sources and cfg.include_local:
@@ -344,19 +320,10 @@ class NoveltyVerifier:
 
         return GapVerificationResult(
             verification_id=_stable_id("verification", candidate.gap_id, json.dumps(cfg.model_dump(mode="json"), sort_keys=True)),
-            gap_id=candidate.gap_id,
-            original_status=candidate.status,
-            resulting_status=resulting_status,
-            verdict=verdict,
-            coverage=coverage,
-            confidence=confidence,
-            query_probes=query_probes,
-            prior_work=matches[:25],
-            counterevidence=counterevidence[:25],
-            nearest_prior_work_ids=[match.paper.paper_id for match in matches[:10]],
-            searched_sources=sorted(searched_sources),
-            limitations=sorted(set(limitations)),
-            rationale=rationale,
+            gap_id=candidate.gap_id, original_status=candidate.status, resulting_status=resulting_status, verdict=verdict,
+            coverage=coverage, confidence=confidence, query_probes=query_probes, prior_work=matches[:25],
+            counterevidence=counterevidence[:25], nearest_prior_work_ids=[match.paper.paper_id for match in matches[:10]],
+            searched_sources=sorted(searched_sources), limitations=sorted(set(limitations)), rationale=rationale,
             verified_candidate=verified_candidate,
         )
 
@@ -364,25 +331,16 @@ class NoveltyVerifier:
     def _paper_from_row(row: Row) -> Paper:
         metadata = json.loads(row["metadata_json"]) if row["metadata_json"] else {}
         return Paper(
-            paper_id=row["paper_id"],
-            title=row["title"],
-            year=row["year"],
-            doi=row["doi"],
-            arxiv_id=row["arxiv_id"],
-            metadata=metadata,
+            paper_id=row["paper_id"], title=row["title"], year=row["year"], doi=row["doi"],
+            arxiv_id=row["arxiv_id"], metadata=metadata,
         )
 
     def verify_batch(self, candidates: list[GapCandidate], config: NoveltyVerificationConfig | None = None) -> NoveltyVerificationReport:
         cfg = config or NoveltyVerificationConfig()
         results = [self.verify(candidate, cfg) for candidate in candidates]
         run_id = _stable_id(
-            "novelty-run",
-            json.dumps(cfg.model_dump(mode="json"), sort_keys=True),
-            *sorted(candidate.gap_id for candidate in candidates),
+            "novelty-run", json.dumps(cfg.model_dump(mode="json"), sort_keys=True), *sorted(candidate.gap_id for candidate in candidates)
         )
         return NoveltyVerificationReport(
-            run_id=run_id,
-            temporal_cutoff=cfg.temporal_cutoff,
-            input_candidate_count=len(candidates),
-            results=results,
+            run_id=run_id, temporal_cutoff=cfg.temporal_cutoff, input_candidate_count=len(candidates), results=results
         )
