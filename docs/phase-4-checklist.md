@@ -7,7 +7,8 @@
 - [x] Recurring/unresolved-limitation candidate detector
 - [x] Cross-domain detector
 - [x] Graph negative-space detector
-- [x] Actual world-model node IDs in signal provenance
+- [x] Supporting paper IDs in signal provenance
+- [x] Directly resolvable graph node IDs only; unresolved entity references remain in `entity_values`
 - [x] Candidate-only status enforcement
 - [x] Temporal cutoff support
 - [x] Deterministic discovery run fingerprint
@@ -16,6 +17,7 @@
 - [x] Regression tests for each detector family
 - [x] Regression test for temporal cutoff
 - [x] Regression test for deterministic run identity
+- [x] Regression test for provenance contract
 - [x] Documentation of scientific limitations
 - [x] Explicit Phase 4/Phase 5 boundary
 
