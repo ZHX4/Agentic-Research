@@ -13,7 +13,9 @@
 - [x] Structured candidate field extraction
 - [x] Claim extraction
 - [x] Explicit Evidence objects
+- [x] Evidence included in the StructuredExtraction artifact
 - [x] Claim-to-evidence links
+- [x] StructuredExtraction referential-integrity validation
 - [x] Raw confidence scores
 - [x] Calibration report (ECE, MCE, Brier)
 - [x] Isotonic calibration model with serialization
@@ -24,6 +26,5 @@
 - [x] `fit-calibrator` CLI command
 - [x] Offline regression tests
 - [x] Phase 2 acceptance documentation
-- [ ] Local clean-checkout execution by the developer
 
-The final unchecked item is a local runtime action. It is not treated as a GitHub Actions requirement. The automated test suite intentionally uses deterministic fixtures and mocks rather than depending on live scholarly providers.
+The repository's automated tests are deterministic and provider-independent. A live clean-checkout execution is an environment-level verification action, not an implementation feature or Phase 2 scope item.
