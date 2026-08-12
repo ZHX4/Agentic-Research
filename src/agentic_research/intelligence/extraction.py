@@ -1,8 +1,4 @@
-"""Deterministic structured field and claim extraction.
-
-Phase 2 deliberately uses explainable heuristics. LLM extraction can be added
-later, but this layer must remain auditable and testable without a model.
-"""
+"""Deterministic structured field and claim extraction."""
 
 from __future__ import annotations
 
@@ -22,24 +18,26 @@ _FIELD_TERMS: dict[str, tuple[str, ...]] = {
     "assumptions": ("assume", "assumption", "we suppose", "under the assumption"),
     "future_work": ("future work", "future research", "we leave", "will investigate", "remain to be studied"),
 }
+_ENTITY_FIELDS = {"methods", "datasets", "metrics", "baselines"}
 _RESULT_WORDS = re.compile(r"\b(improv(?:e|es|ed|ing)|outperform(?:s|ed)?|achiev(?:e|es|ed)|increase[ds]?|decrease[ds]?|reduce[sd]?|yield(?:s|ed)?|obtain(?:s|ed)?)\b", re.I)
 _LIMITATION_WORDS = re.compile(r"\b(limit(?:ation|ations)?|fail(?:s|ed|ure)?|cannot|unable|drawback|constraint)\b", re.I)
 _METHOD_WORDS = re.compile(r"\b(we propose|we introduce|we present|our method|our approach|we develop)\b", re.I)
 
 
 def extract_fields(chunks: list[TextChunk], sections: list[Section]) -> dict[str, list[str]]:
-    """Extract auditable candidate field strings from section-aware chunks."""
+    """Extract candidate entities and narrative field values with auditable heuristics."""
     fields: dict[str, OrderedDict[str, None]] = {name: OrderedDict() for name in _FIELD_TERMS}
     normalized_section = {section.section_id: section.normalized_title for section in sections}
     for chunk in chunks:
         section_name = normalized_section.get(chunk.section_id, "")
         searchable = f"{section_name} {chunk.section_title or ''}".lower()
         for field, terms in _FIELD_TERMS.items():
-            if any(term in searchable for term in terms):
-                for sentence in _sentences(chunk.text):
-                    text = sentence.strip()
-                    if text:
-                        fields[field].setdefault(text, None)
+            if not any(term in searchable for term in terms):
+                continue
+            for sentence in _sentences(chunk.text):
+                for value in _candidate_values(field, sentence):
+                    if value:
+                        fields[field].setdefault(value, None)
     return {key: list(values.keys())[:50] for key, values in fields.items()}
 
 
@@ -91,11 +89,10 @@ def extract_claims(
                     confidence=raw_confidence,
                 )
             )
-            link_hash = hashlib.sha1(f"{claim_id}|{evidence_id}".encode("utf-8")).hexdigest()[:16]
             relation = "supports" if claim_type == "result" else "contextualizes"
             links.append(
                 ClaimEvidenceLink(
-                    link_id=f"link-{link_hash}",
+                    link_id=f"link-{claim_hash}",
                     claim_id=claim_id,
                     evidence_id=evidence_id,
                     relation=relation,
@@ -103,6 +100,31 @@ def extract_claims(
                 )
             )
     return claims, evidence, links
+
+
+def _candidate_values(field: str, sentence: str) -> list[str]:
+    if field not in _ENTITY_FIELDS:
+        return [sentence.strip()]
+    if field == "metrics":
+        known = re.findall(r"\b(?:accuracy|precision|recall|f1(?:-score)?|auc|bleu|rouge(?:-\w+)?)\b", sentence, flags=re.I)
+        return [item.lower() for item in dict.fromkeys(known)]
+    if field == "baselines":
+        match = re.search(r"(?:compared (?:with|to)|baseline(?:s)?(?: include)?)\s+([^.;]+)", sentence, flags=re.I)
+        return _clean_entity_list(match.group(1) if match else "")
+    if field == "datasets":
+        candidates = re.findall(r"(?:dataset|corpus|benchmark)\s*(?:called|named|:)?\s*([A-Z][A-Za-z0-9._-]*(?:\s+[A-Z][A-Za-z0-9._-]*){0,5})", sentence)
+        return _clean_entity_list(", ".join(candidates))
+    match = re.search(r"(?:we propose|we introduce|we present|our (?:method|approach)|we develop|using)\s+([^.;]+)", sentence, flags=re.I)
+    return _clean_entity_list(match.group(1) if match else "")
+
+
+def _clean_entity_list(value: str) -> list[str]:
+    output: list[str] = []
+    for item in re.split(r"\s*(?:,|;| and )\s*", value):
+        cleaned = re.sub(r"\s+", " ", item).strip(" :.-")
+        if 2 <= len(cleaned) <= 120 and not cleaned.lower().startswith(("the ", "a ", "an ")):
+            output.append(cleaned)
+    return list(dict.fromkeys(output))
 
 
 def _classify_claim(sentence: str, section_title: str) -> tuple[str | None, float]:
