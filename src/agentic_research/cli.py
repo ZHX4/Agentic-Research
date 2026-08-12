@@ -10,7 +10,7 @@ import typer
 from rich import print
 from rich.table import Table
 
-from agentic_research.gaps import detect_missing_combinations
+from agentic_research.gaps import detect_missing_combinations, discover_gaps
 from agentic_research.ingestion.jsonl import load_papers
 from agentic_research.intelligence.calibration import CalibrationExample, IsotonicCalibrator, IsotonicModel, calibration_report
 from agentic_research.intelligence.pipeline import extract_paper_intelligence
@@ -22,7 +22,8 @@ from agentic_research.retrieval.contracts import SearchQuery
 from agentic_research.retrieval.embeddings import EmbeddingProvider, HashEmbeddingProvider, SentenceTransformerEmbeddingProvider
 from agentic_research.retrieval.hybrid import HybridRetriever
 from agentic_research.retrieval.reranking import CrossEncoderReranker, LexicalReranker, Reranker
-from agentic_research.schemas import Paper
+from agentic_research.schemas import GapDiscoveryConfig, Paper
+from agentic_research.schemas.gap import GapCandidate
 from agentic_research.schemas.paper_intelligence import StructuredExtraction
 from agentic_research.schemas.phase3 import RetrievalFilters
 from agentic_research.storage.jsonl import JsonlStore
@@ -186,6 +187,42 @@ def traverse(node_id: str = typer.Argument(..., help="Starting world-model node 
     with ScientificWorldModel(database) as world:
         result = world.traverse(node_id, depth=depth, edge_types=set(edge_type) if edge_type else None, direction=direction)
     print(json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False))
+
+
+@app.command(name="discover-gaps")
+def discover_gaps_command(
+    database: Path = typer.Option(Path("artifacts/world-model.sqlite"), exists=True, readable=True, help="Phase 3 scientific world-model database."),
+    output: Path = typer.Option(..., help="Output JSON file for Phase 4 discovery."),
+    temporal_cutoff: int | None = typer.Option(None, min=1900, max=2200),
+    min_entity_support: int = typer.Option(2, min=1, max=1000),
+    min_contradiction_support: int = typer.Option(2, min=2, max=1000),
+    min_condition_support: int = typer.Option(1, min=1, max=1000),
+    min_limitation_support: int = typer.Option(2, min=2, max=1000),
+    min_graph_degree: int = typer.Option(2, min=1, max=1000),
+    min_common_neighbors: int = typer.Option(2, min=1, max=1000),
+    max_underexplored_coverage: float = typer.Option(0.2, gt=0, le=1),
+    max_candidates_per_type: int = typer.Option(200, min=1, max=10000),
+    include_type: list[str] = typer.Option([], help="Restrict detectors; repeat for multiple types."),
+) -> None:
+    """Discover deterministic candidate gaps without novelty verification."""
+    config = GapDiscoveryConfig(
+        temporal_cutoff=temporal_cutoff,
+        min_entity_support=min_entity_support,
+        min_contradiction_support=min_contradiction_support,
+        min_condition_support=min_condition_support,
+        min_limitation_support=min_limitation_support,
+        min_graph_degree=min_graph_degree,
+        min_common_neighbors=min_common_neighbors,
+        max_underexplored_coverage=max_underexplored_coverage,
+        max_candidates_per_type=max_candidates_per_type,
+        include_types=set(include_type) if include_type else GapDiscoveryConfig().include_types,
+    )
+    with ScientificWorldModel(database) as world:
+        result = discover_gaps(world, config)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(result.model_dump_json(indent=2), encoding="utf-8")
+    print(f"Wrote {len(result.candidates)} candidate gaps from {result.corpus_paper_count} papers to {output}")
+    print("[dim]Phase 4 produces candidates only; novelty and counterevidence verification belong to Phase 5.[/dim]")
 
 
 @app.command()
