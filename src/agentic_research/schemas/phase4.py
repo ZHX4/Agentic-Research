@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .gap import GapCandidate
+
 GapSignalType = Literal[
     "missing_combination",
     "contradiction",
@@ -27,6 +29,7 @@ class GapDiscoveryConfig(BaseModel):
     min_limitation_support: int = Field(default=2, ge=2, le=1000)
     min_graph_degree: int = Field(default=2, ge=1, le=1000)
     min_common_neighbors: int = Field(default=2, ge=1, le=1000)
+    max_underexplored_coverage: float = Field(default=0.2, gt=0, le=1)
     max_candidates_per_type: int = Field(default=200, ge=1, le=10000)
     temporal_cutoff: int | None = Field(default=None, ge=1900, le=2200)
     include_types: set[GapSignalType] = Field(
@@ -65,11 +68,20 @@ class GapDiscoveryResult(BaseModel):
     temporal_cutoff: int | None = Field(default=None, ge=1900, le=2200)
     corpus_paper_count: int = Field(ge=0)
     signals: list[GapSignal] = Field(default_factory=list)
-    candidates: list[dict[str, object]] = Field(default_factory=list)
+    candidates: list[GapCandidate] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_signal_ids(self) -> "GapDiscoveryResult":
         ids = [signal.signal_id for signal in self.signals]
         if len(ids) != len(set(ids)):
             raise ValueError("Duplicate signal_id values are not allowed")
+        candidate_ids = [candidate.gap_id for candidate in self.candidates]
+        if len(candidate_ids) != len(set(candidate_ids)):
+            raise ValueError("Duplicate gap_id values are not allowed")
+        signal_ids = set(ids)
+        for candidate in self.candidates:
+            if not set(candidate.signal_ids).issubset(signal_ids):
+                raise ValueError(f"Candidate {candidate.gap_id} references an unknown signal")
+            if candidate.status != "candidate":
+                raise ValueError("Phase 4 may only emit candidate gap status")
         return self
