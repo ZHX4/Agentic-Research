@@ -111,10 +111,12 @@ def acquire(
 ) -> None:
     """Acquire available open full text and write acquisition manifests."""
     settings = LiteratureSettings()
+    # A conservative three-second limiter is used for heterogeneous full-text
+    # hosts so the client cannot accidentally hit a stricter provider too quickly.
     client = HttpClient(
         user_agent=settings.user_agent,
         timeout_seconds=settings.request_timeout_seconds,
-        rate_limiter=RateLimiter(0.1),
+        rate_limiter=RateLimiter(3.0),
     )
     store = JsonlStore(output)
     acquirer = FullTextAcquirer(client=client, output_dir=output_dir)
