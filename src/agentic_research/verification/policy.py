@@ -56,7 +56,11 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
     def verify(self, candidate: GapCandidate, config: NoveltyVerificationConfig | None = None) -> GapVerificationResult:
         cfg = config or NoveltyVerificationConfig()
         result = super().verify(candidate, cfg)
-        prior_ids = {match.paper.paper_id for match in result.prior_work if match.source == "local-world-model"}
+        prior_ids = {
+            match.paper.paper_id
+            for match in result.prior_work
+            if match.source in {"local-world-model", "local"}
+        }
         local_exact = self._local_exact_matches(candidate, prior_ids)
         adjusted_matches = []
         exact_ids = set()
