@@ -78,6 +78,11 @@
 - [x] conservative novelty verdicts
 - [x] search-coverage reporting
 - [x] temporal cutoff with unknown-year exclusion
+- [x] bounded full-text verification
+- [x] PDF verification through Phase 2 intelligence
+- [x] HTML same-context verification
+- [x] deep-evidence provenance and artifact hashes
+- [x] required-deep-check safeguard
 - [x] status-transition control
 - [x] batch verification report
 - [x] dedicated verification CLI
