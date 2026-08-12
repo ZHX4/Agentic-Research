@@ -4,7 +4,7 @@ import fitz
 import pytest
 from pydantic import ValidationError
 
-from agentic_research.intelligence.calibration import CalibrationExample, IsotonicCalibrator, calibration_report
+from agentic_research.intelligence.calibration import CalibrationExample, IsotonicCalibrator, IsotonicModel, calibration_report
 from agentic_research.intelligence.citations import extract_citation_edges, extract_references
 from agentic_research.intelligence.chunking import chunk_blocks
 from agentic_research.intelligence.layout import TextBlock, extract_figures, extract_tables
@@ -76,6 +76,26 @@ def test_confidence_calibrator_is_monotonic() -> None:
     values = [calibrator.transform(x / 10) for x in range(11)]
     assert values == sorted(values)
     assert all(0 <= value <= 1 for value in values)
+
+
+def test_duplicate_confidence_values_are_aggregated() -> None:
+    examples = [
+        CalibrationExample(raw_confidence=0.5, correct=False),
+        CalibrationExample(raw_confidence=0.5, correct=True),
+        CalibrationExample(raw_confidence=0.5, correct=False),
+        CalibrationExample(raw_confidence=0.9, correct=True),
+    ]
+    calibrator = IsotonicCalibrator.fit(examples)
+    assert calibrator.thresholds == sorted(set(calibrator.thresholds))
+    assert calibrator.values == sorted(calibrator.values)
+    assert calibrator.transform(0.5) == pytest.approx(1 / 3)
+
+
+def test_invalid_isotonic_model_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        IsotonicModel(thresholds=[0.5, 0.5], values=[0.2, 0.8])
+    with pytest.raises(ValidationError):
+        IsotonicModel(thresholds=[0.2, 0.8], values=[0.8, 0.2])
 
 
 def test_calibration_report() -> None:
