@@ -9,7 +9,7 @@ from agentic_research.intelligence.citations import extract_citation_edges, extr
 from agentic_research.intelligence.chunking import chunk_blocks
 from agentic_research.intelligence.extraction import extract_claims, extract_fields
 from agentic_research.intelligence.layout import extract_figures, extract_tables, iter_text_blocks
-from agentic_research.intelligence.sections import detect_sections
+from agentic_research.intelligence.sections import detect_sections, assign_section
 from agentic_research.schemas import Paper
 from agentic_research.schemas.paper_intelligence import StructuredExtraction
 
@@ -27,19 +27,26 @@ def extract_paper_intelligence(paper: Paper, pdf_path: Path) -> tuple[Paper, Str
     tables = extract_tables(pdf_path, paper.paper_id)
     figures = extract_figures(pdf_path, paper.paper_id)
 
-    reference_section_ids = {
-        section.section_id
-        for section in sections
-        if section.normalized_title in {"references", "bibliography", "works cited"}
-    }
-    reference_blocks = [block for block in blocks if (next((s.section_id for s in sections if s.page_start and s.page_start <= block.page <= (s.page_end or s.page_start)), None) in reference_section_ids)]
+    reference_section = next(
+        (
+            section
+            for section in reversed(sections)
+            if section.normalized_title in {"references", "bibliography", "works cited"}
+        ),
+        None,
+    )
+    reference_blocks = (
+        [block for block in blocks if block.order >= reference_section.order]
+        if reference_section
+        else []
+    )
     references_text = "\n".join(block.text for block in reference_blocks)
     references = extract_references(paper, references_text) if references_text else []
     citation_edges = extract_citation_edges(paper, chunks, references)
 
     claims, links = extract_claims(
         paper.paper_id,
-        [chunk for chunk in chunks if chunk.section_id not in reference_section_ids],
+        [chunk for chunk in chunks if not (reference_section and chunk.section_id == reference_section.section_id)],
     )
     fields = extract_fields(chunks, sections)
     enriched_paper = _merge_fields_without_claiming_truth(paper, fields)
