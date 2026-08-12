@@ -1,5 +1,6 @@
-from pathlib import Path
 import hashlib
+import sqlite3
+from pathlib import Path
 
 from agentic_research.intelligence.chunking import chunk_blocks
 from agentic_research.intelligence.sections import detect_sections
@@ -15,17 +16,7 @@ from tests.test_paper_intelligence import _block
 
 
 def _paper(paper_id: str, title: str, year: int, source: str) -> Paper:
-    return Paper(
-        paper_id=paper_id,
-        title=title,
-        year=year,
-        authors=["Alice Researcher"],
-        methods=["retrieval"],
-        datasets=["dataset-a"],
-        metrics=["accuracy"],
-        tasks=["question answering"],
-        metadata={"source": source},
-    )
+    return Paper(paper_id=paper_id, title=title, year=year, authors=["Alice Researcher"], methods=["retrieval"], datasets=["dataset-a"], metrics=["accuracy"], tasks=["question answering"], metadata={"source": source})
 
 
 def _extraction(paper: Paper, texts: list[str]) -> StructuredExtraction:
@@ -91,11 +82,21 @@ def test_graph_traversal_direction(tmp_path: Path) -> None:
 def test_world_model_entity_ids_are_stable(tmp_path: Path) -> None:
     db = tmp_path / "world.sqlite"
     paper = _paper("p1", "Entity study", 2024, "test")
-    normalized = "retrieval"
-    expected = f"method:{hashlib.sha1(normalized.encode('utf-8')).hexdigest()[:20]}"
+    expected = f"method:{hashlib.sha1(b'retrieval').hexdigest()[:20]}"
     with ScientificWorldModel(db) as world:
         index_extraction(world, paper, _extraction(paper, ["retrieval evidence"]))
         assert world.get_node(expected) is not None
+
+
+def test_world_model_migrates_old_chunk_table(tmp_path: Path) -> None:
+    db = tmp_path / "old.sqlite"
+    connection = sqlite3.connect(db)
+    connection.execute("CREATE TABLE chunks (chunk_id TEXT PRIMARY KEY, paper_id TEXT NOT NULL, title TEXT NOT NULL, text TEXT NOT NULL, section TEXT, page_start INTEGER, page_end INTEGER, year INTEGER, source TEXT, vector BLOB, vector_dim INTEGER)")
+    connection.commit()
+    connection.close()
+    with ScientificWorldModel(db) as world:
+        columns = {row["name"] for row in world.connection.execute("PRAGMA table_info(chunks)").fetchall()}
+    assert "vector_model" in columns
 
 
 def test_world_model_rejects_unknown_traversal_start(tmp_path: Path) -> None:
