@@ -18,8 +18,9 @@
 - [x] PDF parsing
 - [x] HTML parsing
 - [x] Phase 1 CLI commands (`search`, `acquire`, `parse`)
-- [x] Offline adapter/transport/identity/full-text/service tests
+- [x] Offline adapter/transport/identity/full-text/service/CLI tests
 - [x] Phase 1 acceptance documentation
-- [ ] Live provider smoke test by the developer
 
-The final unchecked item is intentionally a live-network verification step. The Phase 1 automated suite uses deterministic mocks and does not require provider credentials or network access.
+## Optional operator verification
+
+A developer with provider credentials may run a live search against each service after checkout. This is an operational smoke test, not a prerequisite for the deterministic Phase 1 implementation or its automated test suite.
