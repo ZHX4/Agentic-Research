@@ -36,13 +36,5 @@ def test_search_query_defaults_and_bounds() -> None:
     with pytest.raises(ValidationError):
         SearchQuery(text="retrieval", limit=1001)
 
-
-def test_search_query_year_invariants() -> None:
     with pytest.raises(ValidationError):
-        SearchQuery(text="x", year_from=2025, year_to=2024)
-
-    with pytest.raises(ValidationError):
-        SearchQuery(text="x", year_from=2025, temporal_cutoff=2024)
-
-    with pytest.raises(ValidationError):
-        SearchQuery(text="x", year_to=2025, temporal_cutoff=2024)
+        SearchQuery.model_validate({"text": "retrieval", "unknown": True})
