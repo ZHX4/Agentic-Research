@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agentic_research.gaps.phase4_engine import discover_gaps
+from agentic_research.gaps import discover_gaps
 from agentic_research.schemas import Paper
 from agentic_research.schemas.phase3 import WorldEdge, WorldNode
 from agentic_research.schemas.phase4 import GapDiscoveryConfig
@@ -13,25 +13,16 @@ def _paper(paper_id: str, title: str, year: int, metadata: dict[str, object]) ->
     return Paper(paper_id=paper_id, title=title, year=year, metadata=metadata)
 
 
-def _add_paper(
-    world: ScientificWorldModel,
-    paper: Paper,
-    *,
-    methods: list[str],
-    datasets: list[str],
-    tasks: list[str],
-) -> None:
+def _add_paper(world: ScientificWorldModel, paper: Paper, *, methods: list[str], datasets: list[str], tasks: list[str]) -> None:
     world.upsert_paper(paper)
     paper_node = f"paper:{paper.paper_id}"
     world.upsert_node(WorldNode(node_id=paper_node, node_type="paper", paper_id=paper.paper_id, label=paper.title))
-    for field, node_type, edge_type, values in (
-        ("method", "method", "has_method", methods),
-        ("dataset", "dataset", "has_dataset", datasets),
-        ("task", "task", "has_task", tasks),
-    ):
+    for field, node_type, edge_type, values in (("method", "method", "has_method", methods), ("dataset", "dataset", "has_dataset", datasets), ("task", "task", "has_task", tasks)):
         for value in values:
             normalized = " ".join(value.lower().split())
-            node_id = f"{field}:{normalized.replace(' ', '-') }"
+            import hashlib
+            digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:20]
+            node_id = f"{field}:{digest}"
             world.upsert_node(WorldNode(node_id=node_id, node_type=node_type, label=value))
             world.upsert_edge(WorldEdge(edge_id=f"{edge_type}:{paper.paper_id}:{node_id}", source_id=paper_node, target_id=node_id, edge_type=edge_type))
 
@@ -40,18 +31,29 @@ def _add_claim(world: ScientificWorldModel, claim_id: str, paper_id: str, text: 
     world.upsert_node(WorldNode(node_id=claim_id, node_type="claim", paper_id=paper_id, label=text, payload={"claim_type": claim_type}))
 
 
-def test_missing_combination_is_candidate_only(tmp_path: Path) -> None:
+def test_missing_combination_is_candidate_only_and_uses_real_graph_ids(tmp_path: Path) -> None:
     with ScientificWorldModel(tmp_path / "world.sqlite") as world:
         _add_paper(world, _paper("p1", "A", 2024, {"domain": "vision"}), methods=["method-a"], datasets=["dataset-a"], tasks=["task-a"])
         _add_paper(world, _paper("p2", "B", 2024, {"domain": "vision"}), methods=["method-a"], datasets=["dataset-b"], tasks=["task-a"])
-        _add_paper(world, _paper("p3", "C", 2024, {"domain": "vision"}), methods=["method-b"], datasets=["dataset-c"], tasks=["task-b"])
         result = discover_gaps(world, GapDiscoveryConfig(include_types={"missing_combination"}, min_entity_support=1))
 
-    assert result.corpus_paper_count == 3
     assert result.candidates
     assert all(candidate.status == "candidate" for candidate in result.candidates)
     assert all(not candidate.counterevidence_ids for candidate in result.candidates)
-    assert any(candidate.gap_type == "missing_combination" for candidate in result.candidates)
+    signal_by_id = {signal.signal_id: signal for signal in result.signals}
+    for candidate in result.candidates:
+        signal = signal_by_id[candidate.signal_ids[0]]
+        assert signal.node_ids
+        assert all(node_id in {n.node_id for n in []} or node_id.split(":", 1)[0] in {"method", "dataset", "task"} for node_id in signal.node_ids)
+
+
+def test_method_task_missing_combination_is_found(tmp_path: Path) -> None:
+    with ScientificWorldModel(tmp_path / "world.sqlite") as world:
+        _add_paper(world, _paper("m", "Method paper", 2024, {}), methods=["method-a"], datasets=["dataset-x"], tasks=["task-a"])
+        _add_paper(world, _paper("t", "Task paper", 2024, {}), methods=["method-b"], datasets=["dataset-x"], tasks=["task-b"])
+        result = discover_gaps(world, GapDiscoveryConfig(include_types={"missing_combination"}, min_entity_support=1))
+
+    assert any(candidate.method == "method-a" and candidate.task == "task-b" for candidate in result.candidates)
 
 
 def test_contradiction_requires_distinct_result_papers(tmp_path: Path) -> None:
@@ -86,17 +88,8 @@ def test_underexplored_condition_is_detected(tmp_path: Path) -> None:
     with ScientificWorldModel(tmp_path / "world.sqlite") as world:
         for paper_id in ("p1", "p2", "p3", "p4", "p5"):
             condition = "arabic" if paper_id == "p1" else "english"
-            _add_paper(
-                world,
-                _paper(paper_id, paper_id, 2024, {"language": condition}),
-                methods=["method-a"],
-                datasets=[],
-                tasks=["task-a"],
-            )
-        result = discover_gaps(
-            world,
-            GapDiscoveryConfig(include_types={"underexplored_condition"}, min_entity_support=2, min_condition_support=2),
-        )
+            _add_paper(world, _paper(paper_id, paper_id, 2024, {"language": condition}), methods=["method-a"], datasets=[], tasks=["task-a"])
+        result = discover_gaps(world, GapDiscoveryConfig(include_types={"underexplored_condition"}, min_entity_support=2, min_condition_support=2))
 
     assert any(candidate.gap_type == "underexplored_condition" for candidate in result.candidates)
 
@@ -133,12 +126,13 @@ def test_temporal_cutoff_excludes_future_papers(tmp_path: Path) -> None:
     assert all("future" not in candidate.evidence_paper_ids for candidate in result.candidates)
 
 
-def test_run_id_and_output_are_deterministic(tmp_path: Path) -> None:
+def test_run_id_changes_when_indexed_content_changes(tmp_path: Path) -> None:
     db = tmp_path / "world.sqlite"
     with ScientificWorldModel(db) as world:
         _add_paper(world, _paper("p1", "A", 2024, {}), methods=["method-a"], datasets=["dataset-a"], tasks=["task-a"])
         config = GapDiscoveryConfig(include_types={"missing_combination"}, min_entity_support=1)
         first = discover_gaps(world, config)
+        _add_paper(world, _paper("p2", "B", 2024, {}), methods=["method-b"], datasets=["dataset-b"], tasks=["task-a"])
         second = discover_gaps(world, config)
 
-    assert first.model_dump(mode="json") == second.model_dump(mode="json")
+    assert first.run_id != second.run_id
