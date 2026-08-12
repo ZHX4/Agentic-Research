@@ -56,6 +56,21 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
     def verify(self, candidate: GapCandidate, config: NoveltyVerificationConfig | None = None) -> GapVerificationResult:
         cfg = config or NoveltyVerificationConfig()
         result = super().verify(candidate, cfg)
+        if result.verdict == "supported" and not result.prior_work:
+            inconclusive = result.verified_candidate.model_copy(
+                update={"status": GapStatus.UNCERTAIN if cfg.allow_status_transition else GapStatus.CANDIDATE, "confidence": min(result.confidence, 0.25)}
+            )
+            return result.model_copy(
+                update={
+                    "verdict": "inconclusive",
+                    "resulting_status": inconclusive.status,
+                    "confidence": min(result.confidence, 0.25),
+                    "rationale": "Search probes completed but returned no prior-work evidence; absence of results is insufficient to support a novelty conclusion.",
+                    "limitations": sorted(set(result.limitations + ["No prior-work evidence was retrieved; search completion alone does not establish novelty."])),
+                    "verified_candidate": inconclusive,
+                }
+            )
+
         prior_ids = {
             match.paper.paper_id
             for match in result.prior_work
