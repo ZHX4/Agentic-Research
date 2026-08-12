@@ -64,7 +64,9 @@ class SemanticScholarAdapter(LiteratureRetriever):
                 break
             for raw in data:
                 paper = _paper_from_semantic_scholar(raw)
-                if paper.year is not None and query.temporal_cutoff is not None and paper.year > query.temporal_cutoff:
+                if query.temporal_cutoff is not None and (
+                    paper.year is None or paper.year > query.temporal_cutoff
+                ):
                     continue
                 results.append(
                     SearchHit(
