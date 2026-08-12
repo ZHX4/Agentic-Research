@@ -111,19 +111,28 @@ def acquire(
 ) -> None:
     """Acquire available open full text and write acquisition manifests."""
     settings = LiteratureSettings()
-    # A conservative three-second limiter is used for heterogeneous full-text
-    # hosts so the client cannot accidentally hit a stricter provider too quickly.
     client = HttpClient(
         user_agent=settings.user_agent,
         timeout_seconds=settings.request_timeout_seconds,
-        rate_limiter=RateLimiter(3.0),
+        rate_limiter=RateLimiter(settings.arxiv_min_interval_seconds),
     )
     store = JsonlStore(output)
     acquirer = FullTextAcquirer(client=client, output_dir=output_dir)
     try:
         count = 0
         for paper in load_papers(input):
-            store.append(acquirer.acquire(paper))
+            if not paper.metadata.get("open_access_pdf_url") and not paper.arxiv_id and paper.url is None:
+                manifest = FullTextManifest(
+                    paper_id=paper.paper_id,
+                    source="none",
+                    requested_url=None,
+                    media_type="unknown",
+                    status="not_found",
+                    error="No candidate full-text URL is available",
+                )
+            else:
+                manifest = acquirer.acquire(paper)
+            store.append(manifest)
             count += 1
         print(f"Wrote {count} full-text manifests to {output}")
     finally:
