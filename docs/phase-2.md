@@ -6,20 +6,22 @@ Phase 2 converts acquired full-text documents from Phase 1 into auditable scient
 
 - layout-aware PDF block extraction with global document order
 - conservative section detection and hierarchical parent assignment
-- same-page section assignment based on block order
+- same-page section assignment based on document order
 - section-aware text chunking with size limits
 - native PDF table extraction through PyMuPDF `Page.find_tables()`
-- embedded image/figure extraction with SHA-like image identifiers and nearby figure-caption detection
+- embedded image/figure extraction with deterministic image identifiers and nearby figure-caption detection
 - bibliography/reference segmentation
 - DOI/arXiv normalization for references
-- numeric citation marker extraction and citation-edge ingestion
+- numeric citation marker extraction and range handling
+- common author-year citation resolution when the reference first-author/year can be matched deterministically
 - structured candidate fields for methods, datasets, metrics, baselines, limitations, assumptions, and future work
 - deterministic claim extraction with explicit claim types and raw confidence
 - explicit `Evidence` records linked to claims via `ClaimEvidenceLink`
 - calibration metrics: ECE, MCE, and Brier score
 - isotonic confidence calibration with a serializable calibration model
+- content-addressed extraction IDs using the PDF SHA-256 and extractor version
 - one-command end-to-end PDF analysis
-- offline regression tests for sections, chunking, citations, tables, figures, claims, evidence, calibration, pipeline, and CLI
+- offline regression tests for sections, chunking, tables, figures, claims, evidence, citations, calibration, pipeline, and CLI
 
 ## Scientific integrity rules
 
@@ -28,12 +30,14 @@ Phase 2 converts acquired full-text documents from Phase 1 into auditable scient
 3. Every claim produced by the pipeline has a source chunk and an explicit `Evidence` record.
 4. Confidence values are heuristic **raw** confidence until calibrated on labeled examples. No labels are invented by the system.
 5. Citation parsing only creates edges when a citation marker resolves to an extracted reference entry.
-6. A citation edge with no DOI/arXiv identifier is still preserved as a reference edge, but `cited_paper_id` remains null rather than being guessed.
-7. Native table/figure extraction is allowed to miss difficult layouts. The confidence field records extraction confidence instead of fabricating completeness.
+6. A citation edge with no DOI/arXiv identifier is still preserved, but `cited_paper_id` remains null rather than being guessed.
+7. Native table/figure extraction may miss difficult layouts. Confidence records extraction quality rather than fabricating completeness.
+8. Citation parsing is intentionally conservative. Numeric and common author-year styles are supported; unusual styles, superscript-only markers, or malformed bibliographies may remain unresolved.
+9. No OCR is performed in Phase 2. Image-only/scanned PDFs may therefore yield incomplete text structure and should be routed to a later OCR-capable acquisition/parsing enhancement rather than silently treated as complete.
 
 ## Why PyMuPDF is used
 
-Current PyMuPDF exposes structured `dict`/block extraction and `Page.find_tables()` with cell extraction and markdown conversion. The Phase 2 implementation uses these capabilities while preserving the document coordinates and page numbers needed for evidence provenance.
+Current PyMuPDF exposes structured `dict`/block extraction and `Page.find_tables()` with cell extraction and markdown conversion. The Phase 2 implementation uses these capabilities while preserving document coordinates and page numbers needed for evidence provenance.
 
 ## Explicit non-goals
 
@@ -53,14 +57,15 @@ The following remain later phases:
 
 A clean checkout is considered Phase 2 complete when:
 
-1. the Phase 0 and Phase 1 test suites remain compatible;
-2. `Page.find_tables()`-based extraction is covered by an offline PDF fixture;
+1. Phase 0 and Phase 1 interfaces remain compatible;
+2. table extraction is covered by an offline PDF fixture;
 3. same-page section ordering is covered by a regression test;
-4. numeric references generate reproducible citation edges;
+4. numeric and common author-year references generate reproducible citation edges;
 5. claims produce explicit evidence IDs and claim/evidence links;
-6. calibration produces bounded and monotone mappings from labeled data;
-7. the end-to-end pipeline produces a `StructuredExtraction` from a deterministic PDF fixture;
-8. CLI `analyze` and `calibrate` are covered by tests;
-9. no Phase 2 output is represented as a novelty claim or scientific conclusion.
+6. calibration produces bounded, monotone mappings from labeled data;
+7. extraction IDs are stable for identical PDF content and extractor version;
+8. the end-to-end pipeline produces a `StructuredExtraction` from a deterministic PDF fixture;
+9. CLI `analyze`, `calibrate`, and `fit-calibrator` are covered by tests;
+10. no Phase 2 output is represented as a novelty claim or scientific conclusion.
 
 See `docs/phase-2-checklist.md` for the implementation checklist.
