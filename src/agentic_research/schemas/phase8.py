@@ -5,24 +5,12 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-
-BenchmarkKind = Literal[
-    "retrieval",
-    "extraction",
-    "gap",
-    "novelty",
-    "temporal",
-    "human",
-    "baseline",
-    "ablation",
-]
-
+BenchmarkKind = Literal["retrieval", "extraction", "gap", "novelty", "temporal", "human", "baseline", "ablation"]
 MetricDirection = Literal["higher", "lower"]
 
 
 class BenchmarkCase(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     case_id: str = Field(min_length=1)
     kind: BenchmarkKind
     input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -42,7 +30,6 @@ class BenchmarkCase(BaseModel):
 
 class PredictionRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     case_id: str = Field(min_length=1)
     predicted_ids: list[str] = Field(default_factory=list)
     predicted_labels: list[str] = Field(default_factory=list)
@@ -54,7 +41,6 @@ class PredictionRecord(BaseModel):
 
 class MetricValue(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     name: str = Field(min_length=1)
     value: float
     direction: MetricDirection = "higher"
@@ -67,7 +53,6 @@ class MetricValue(BaseModel):
 
 class BenchmarkResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     run_id: str = Field(min_length=1)
     benchmark_id: str = Field(min_length=1)
     kind: BenchmarkKind
@@ -80,7 +65,6 @@ class BenchmarkResult(BaseModel):
 
 class HumanRating(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     case_id: str = Field(min_length=1)
     annotator_id: str = Field(min_length=1)
     label: str = Field(min_length=1)
@@ -90,10 +74,9 @@ class HumanRating(BaseModel):
 
 class HumanEvaluationResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     evaluation_id: str = Field(min_length=1)
     task: Literal["gap_quality", "novelty_verdict", "extraction_quality", "hypothesis_quality"]
-    annotator_count: int = Field(ge=1)
+    annotator_count: int = Field(ge=2)
     item_count: int = Field(ge=0)
     agreement_metrics: list[MetricValue] = Field(default_factory=list)
     aggregate_scores: list[MetricValue] = Field(default_factory=list)
@@ -102,14 +85,15 @@ class HumanEvaluationResult(BaseModel):
     @model_validator(mode="after")
     def validate_raters(self) -> "HumanEvaluationResult":
         annotators = {rating.annotator_id for rating in self.ratings}
-        if annotators and len(annotators) != self.annotator_count:
-            raise ValueError("annotator_count must match ratings")
+        if len(annotators) != self.annotator_count:
+            raise ValueError("annotator_count must match ratings exactly")
+        if len(self.ratings) < self.item_count * 2:
+            raise ValueError("Human evaluation requires at least two ratings per evaluated item")
         return self
 
 
 class BaselineSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     baseline_id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     system_type: Literal["retrieval", "rag", "llm", "heuristic", "oracle"]
@@ -120,9 +104,9 @@ class BaselineSpec(BaseModel):
 
 class BaselineComparison(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     comparison_id: str = Field(min_length=1)
     metric_name: str = Field(min_length=1)
+    metric_direction: MetricDirection = "higher"
     primary_system: str = Field(min_length=1)
     baselines: list[str] = Field(min_length=1)
     metrics: dict[str, float] = Field(min_length=1)
@@ -133,7 +117,6 @@ class BaselineComparison(BaseModel):
 
 class AblationSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     ablation_id: str = Field(min_length=1)
     component: str = Field(min_length=1)
     enabled: bool
@@ -143,7 +126,6 @@ class AblationSpec(BaseModel):
 
 class AblationResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     ablation_id: str = Field(min_length=1)
     component: str = Field(min_length=1)
     baseline_metrics: dict[str, float] = Field(min_length=1)
@@ -154,7 +136,6 @@ class AblationResult(BaseModel):
 
 class CostRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     run_id: str = Field(min_length=1)
     wall_seconds: float = Field(ge=0)
     cpu_seconds: float | None = Field(default=None, ge=0)
@@ -168,7 +149,6 @@ class CostRecord(BaseModel):
 
 class EvaluationReport(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     report_id: str = Field(min_length=1)
     system_name: str = Field(min_length=1)
     benchmark_results: list[BenchmarkResult] = Field(default_factory=list)
