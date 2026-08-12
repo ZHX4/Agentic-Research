@@ -1,6 +1,6 @@
 """Phase 2 evidence-grounded paper intelligence."""
 
-from .calibration import CalibrationExample, CalibrationReport, IsotonicCalibrator, calibration_report
+from .calibration import CalibrationExample, CalibrationReport, IsotonicCalibrator, IsotonicModel, calibration_report
 from .pipeline import EXTRACTOR_VERSION, extract_paper_intelligence
 
 __all__ = [
@@ -9,5 +9,6 @@ __all__ = [
     "CalibrationExample",
     "CalibrationReport",
     "IsotonicCalibrator",
+    "IsotonicModel",
     "calibration_report",
 ]
