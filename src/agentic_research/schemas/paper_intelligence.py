@@ -7,7 +7,9 @@ scientific truth; extracted claims remain evidence candidates until evaluated.
 from datetime import datetime, timezone
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from .paper import Evidence
 
 
 def utcnow() -> datetime:
@@ -148,7 +150,64 @@ class StructuredExtraction(BaseModel):
     figures: list[FigureRecord] = Field(default_factory=list)
     references: list[CitationReference] = Field(default_factory=list)
     citation_edges: list[CitationEdge] = Field(default_factory=list)
+    evidence: list[Evidence] = Field(default_factory=list)
     claims: list[ExtractedClaim] = Field(default_factory=list)
     claim_links: list[ClaimEvidenceLink] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utcnow)
     extractor_version: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_referential_integrity(self) -> "StructuredExtraction":
+        self._require_unique("section_id", self.sections)
+        self._require_unique("chunk_id", self.chunks)
+        self._require_unique("table_id", self.tables)
+        self._require_unique("figure_id", self.figures)
+        self._require_unique("reference_id", self.references)
+        self._require_unique("edge_id", self.citation_edges)
+        self._require_unique("evidence_id", self.evidence)
+        self._require_unique("claim_id", self.claims)
+        self._require_unique("link_id", self.claim_links)
+
+        section_ids = {item.section_id for item in self.sections}
+        chunk_ids = {item.chunk_id for item in self.chunks}
+        reference_ids = {item.reference_id for item in self.references}
+        evidence_ids = {item.evidence_id for item in self.evidence}
+        claim_ids = {item.claim_id for item in self.claims}
+
+        for section in self.sections:
+            self._require_paper_id(section.paper_id)
+            if section.parent_section_id is not None and section.parent_section_id not in section_ids:
+                raise ValueError(f"Unknown parent_section_id: {section.parent_section_id}")
+        for chunk in self.chunks:
+            self._require_paper_id(chunk.paper_id)
+            if chunk.section_id is not None and chunk.section_id not in section_ids:
+                raise ValueError(f"Unknown chunk section_id: {chunk.section_id}")
+        for record in [*self.tables, *self.figures, *self.references, *self.evidence, *self.claims]:
+            self._require_paper_id(record.paper_id)
+        for claim in self.claims:
+            if claim.chunk_id not in chunk_ids:
+                raise ValueError(f"Unknown claim chunk_id: {claim.chunk_id}")
+            if claim.section_id is not None and claim.section_id not in section_ids:
+                raise ValueError(f"Unknown claim section_id: {claim.section_id}")
+        for edge in self.citation_edges:
+            self._require_paper_id(edge.citing_paper_id)
+            if edge.cited_reference_id not in reference_ids:
+                raise ValueError(f"Unknown cited_reference_id: {edge.cited_reference_id}")
+            if edge.citation_context_chunk_id is not None and edge.citation_context_chunk_id not in chunk_ids:
+                raise ValueError(f"Unknown citation_context_chunk_id: {edge.citation_context_chunk_id}")
+        for link in self.claim_links:
+            if link.claim_id not in claim_ids:
+                raise ValueError(f"Unknown claim_id: {link.claim_id}")
+            if link.evidence_id not in evidence_ids:
+                raise ValueError(f"Unknown evidence_id: {link.evidence_id}")
+        return self
+
+    def _require_paper_id(self, paper_id: str) -> None:
+        if paper_id != self.paper_id:
+            raise ValueError(f"Object belongs to paper_id={paper_id!r}, expected {self.paper_id!r}")
+
+    @staticmethod
+    def _require_unique(attribute: str, items: list[BaseModel]) -> None:
+        values = [getattr(item, attribute) for item in items]
+        if len(values) != len(set(values)):
+            raise ValueError(f"Duplicate {attribute} values are not allowed")
