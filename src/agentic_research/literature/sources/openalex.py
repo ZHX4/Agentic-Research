@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import httpx
+
 from agentic_research.literature.identity import normalize_doi
 from agentic_research.literature.transport import HttpClient, RateLimiter
 from agentic_research.retrieval.contracts import LiteratureRetriever, SearchHit, SearchQuery
@@ -64,7 +66,11 @@ class OpenAlexAdapter(LiteratureRetriever):
             if filters:
                 params["filter"] = ",".join(filters)
 
-            payload = self._client.get(_BASE_URL, params=params).json()
+            try:
+                payload = self._client.get(_BASE_URL, params=params).json()
+            except httpx.HTTPStatusError as exc:
+                status = exc.response.status_code
+                raise RuntimeError(f"OpenAlex request failed with HTTP {status}") from exc
             raw_results = payload.get("results", [])
             for raw in raw_results:
                 paper = _paper_from_openalex(raw)
