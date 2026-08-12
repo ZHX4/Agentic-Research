@@ -67,9 +67,7 @@ def extract_paper_intelligence(
             item.confidence = calibrated
 
     fields = extract_fields(body_chunks, sections)
-    enriched_paper = _merge_fields_and_evidence(paper, fields, evidence)
-    if calibrator is not None:
-        enriched_paper.metadata.setdefault("phase2_extraction", {})["calibration_applied"] = True
+    enriched_paper = _merge_fields_and_evidence(paper, fields, evidence, document_digest, calibrator is not None)
 
     extraction_id = hashlib.sha1(
         f"{paper.paper_id}|{document_digest}|{EXTRACTOR_VERSION}".encode("utf-8")
@@ -94,6 +92,8 @@ def _merge_fields_and_evidence(
     paper: Paper,
     fields: dict[str, list[str]],
     evidence: list[Evidence],
+    document_digest: str,
+    calibration_applied: bool,
 ) -> Paper:
     enriched = paper.model_copy(deep=True)
     for field, values in fields.items():
@@ -106,9 +106,10 @@ def _merge_fields_and_evidence(
         **enriched.metadata,
         "phase2_extraction": {
             "extractor_version": EXTRACTOR_VERSION,
-            "document_sha256": enriched.metadata.get("document_sha256", None),
+            "document_sha256": document_digest,
             "field_values_are_candidates": True,
             "claim_evidence_is_extracted": True,
+            "calibration_applied": calibration_applied,
         },
     }
     return enriched
