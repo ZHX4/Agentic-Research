@@ -11,7 +11,7 @@ from rich.table import Table
 
 from agentic_research.gaps import detect_missing_combinations
 from agentic_research.ingestion.jsonl import load_papers
-from agentic_research.intelligence.calibration import CalibrationExample, calibration_report
+from agentic_research.intelligence.calibration import CalibrationExample, IsotonicCalibrator, IsotonicModel, calibration_report
 from agentic_research.intelligence.pipeline import extract_paper_intelligence
 from agentic_research.literature.factory import build_literature_service
 from agentic_research.literature.fulltext import FullTextAcquirer, FullTextManifest, parse_full_text
@@ -144,11 +144,17 @@ def parse(
 def analyze(
     paper: Path = typer.Option(..., exists=True, readable=True, help="JSON file containing one canonical Paper."),
     pdf: Path = typer.Option(..., exists=True, readable=True, help="PDF file to analyze."),
-    output: Path = typer.Option(..., help="Output JSON containing the enriched Paper and StructuredExtraction."),
+    output: Path = typer.Option(..., help="Output JSON containing Paper and StructuredExtraction."),
+    calibration_model: Path | None = typer.Option(None, exists=True, readable=True, help="Optional isotonic calibration model JSON."),
 ) -> None:
     """Run the deterministic Phase 2 paper-intelligence pipeline on one PDF."""
     paper_obj = Paper.model_validate_json(paper.read_text(encoding="utf-8"))
-    enriched, extraction = extract_paper_intelligence(paper_obj, pdf)
+    calibrator = None
+    if calibration_model is not None:
+        calibrator = IsotonicCalibrator.from_model(
+            IsotonicModel.model_validate_json(calibration_model.read_text(encoding="utf-8"))
+        )
+    enriched, extraction = extract_paper_intelligence(paper_obj, pdf, calibrator=calibrator)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
         json.dumps({"paper": enriched.model_dump(mode="json"), "extraction": extraction.model_dump(mode="json")}, indent=2, ensure_ascii=False),
@@ -169,6 +175,19 @@ def calibrate(
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(report.model_dump_json(indent=2), encoding="utf-8")
     print(f"Wrote calibration report for {len(examples)} examples to {output}")
+
+
+@app.command(name="fit-calibrator")
+def fit_calibrator(
+    input: Path = typer.Option(..., exists=True, readable=True, help="JSONL with raw_confidence and correct fields."),
+    output: Path = typer.Option(..., help="Output isotonic calibration model JSON."),
+) -> None:
+    """Fit and persist an isotonic calibrator from labeled extraction examples."""
+    examples = [CalibrationExample.model_validate(json.loads(line)) for line in input.read_text(encoding="utf-8").splitlines() if line.strip()]
+    model = IsotonicCalibrator.fit(examples).to_model()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(model.model_dump_json(indent=2), encoding="utf-8")
+    print(f"Wrote calibration model for {len(examples)} examples to {output}")
 
 
 if __name__ == "__main__":
