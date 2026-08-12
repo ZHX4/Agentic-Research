@@ -49,8 +49,6 @@
 - [x] retrieval CLI
 - [x] deterministic offline regression coverage
 
-> Live GitHub Actions execution is currently blocked by an account billing lock. The failed runs are infrastructure failures before the job starts, not repository test failures. See `docs/phase-3-checklist.md`.
-
 ## Phase 4 — Gap discovery (implemented)
 
 - [x] missing combinations
@@ -67,14 +65,25 @@
 - [x] regression coverage
 - [x] candidate-only status enforcement
 
-## Phase 5 — Adversarial novelty
+## Phase 5 — Adversarial novelty (implemented)
 
-- Devil's Advocate agent
-- query expansion
-- alternate terminology search
-- nearest-prior-work comparison
-- counterevidence registry
-- novelty uncertainty reporting
+- [x] Devil's Advocate agent interface
+- [x] deterministic query expansion
+- [x] fixed alternate-terminology probes
+- [x] local world-model search
+- [x] configured external scholarly search
+- [x] nearest-prior-work comparison
+- [x] direct / near / contextual classification
+- [x] counterevidence registry
+- [x] conservative novelty verdicts
+- [x] search-coverage reporting
+- [x] temporal cutoff with unknown-year exclusion
+- [x] status-transition control
+- [x] batch verification report
+- [x] dedicated verification CLI
+- [x] offline regression coverage
+
+> Live GitHub Actions execution may be unavailable when the GitHub account is billing-locked. The Phase 5 acceptance gate therefore does not claim a live CI pass when GitHub did not start the job.
 
 ## Phase 6 — Hypothesis reasoning
 
