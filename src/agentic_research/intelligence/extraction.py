@@ -10,13 +10,8 @@ import hashlib
 import re
 from collections import OrderedDict
 
-from agentic_research.schemas import Paper
-from agentic_research.schemas.paper_intelligence import (
-    ClaimEvidenceLink,
-    ExtractedClaim,
-    Section,
-    TextChunk,
-)
+from agentic_research.schemas import Evidence, Paper
+from agentic_research.schemas.paper_intelligence import ClaimEvidenceLink, ExtractedClaim, Section, TextChunk
 
 _FIELD_TERMS: dict[str, tuple[str, ...]] = {
     "methods": ("method", "methods", "approach", "architecture", "algorithm", "model"),
@@ -27,20 +22,14 @@ _FIELD_TERMS: dict[str, tuple[str, ...]] = {
     "assumptions": ("assume", "assumption", "we suppose", "under the assumption"),
     "future_work": ("future work", "future research", "we leave", "will investigate", "remain to be studied"),
 }
-_RESULT_WORDS = re.compile(
-    r"\b(improv(?:e|es|ed|ing)|outperform(?:s|ed)?|achiev(?:e|es|ed)|increase[ds]?|decrease[ds]?|reduce[sd]?|yield(?:s|ed)?|obtain(?:s|ed)?)\b",
-    re.I,
-)
+_RESULT_WORDS = re.compile(r"\b(improv(?:e|es|ed|ing)|outperform(?:s|ed)?|achiev(?:e|es|ed)|increase[ds]?|decrease[ds]?|reduce[sd]?|yield(?:s|ed)?|obtain(?:s|ed)?)\b", re.I)
 _LIMITATION_WORDS = re.compile(r"\b(limit(?:ation|ations)?|fail(?:s|ed|ure)?|cannot|unable|drawback|constraint)\b", re.I)
 _METHOD_WORDS = re.compile(r"\b(we propose|we introduce|we present|our method|our approach|we develop)\b", re.I)
 
 
 def extract_fields(chunks: list[TextChunk], sections: list[Section]) -> dict[str, list[str]]:
     """Extract auditable candidate field strings from section-aware chunks."""
-    fields: dict[str, OrderedDict[str, None]] = {
-        name: OrderedDict()
-        for name in _FIELD_TERMS
-    }
+    fields: dict[str, OrderedDict[str, None]] = {name: OrderedDict() for name in _FIELD_TERMS}
     normalized_section = {section.section_id: section.normalized_title for section in sections}
     for chunk in chunks:
         section_name = normalized_section.get(chunk.section_id, "")
@@ -66,8 +55,9 @@ def merge_extracted_fields(paper: Paper, fields: dict[str, list[str]]) -> Paper:
 def extract_claims(
     paper_id: str,
     chunks: list[TextChunk],
-) -> tuple[list[ExtractedClaim], list[ClaimEvidenceLink]]:
+) -> tuple[list[ExtractedClaim], list[Evidence], list[ClaimEvidenceLink]]:
     claims: list[ExtractedClaim] = []
+    evidence: list[Evidence] = []
     links: list[ClaimEvidenceLink] = []
     for chunk in chunks:
         for sentence in _sentences(chunk.text):
@@ -76,6 +66,7 @@ def extract_claims(
                 continue
             claim_hash = hashlib.sha1(f"{paper_id}|{chunk.chunk_id}|{sentence}".encode("utf-8")).hexdigest()[:16]
             claim_id = f"claim-{claim_hash}"
+            evidence_id = f"evidence-{claim_hash}"
             claims.append(
                 ExtractedClaim(
                     claim_id=claim_id,
@@ -88,18 +79,30 @@ def extract_claims(
                     raw_confidence=raw_confidence,
                 )
             )
-            link_hash = hashlib.sha1(f"{claim_id}|{chunk.chunk_id}".encode("utf-8")).hexdigest()[:16]
+            evidence.append(
+                Evidence(
+                    evidence_id=evidence_id,
+                    paper_id=paper_id,
+                    claim=sentence,
+                    section=chunk.section_title,
+                    page=chunk.page_start,
+                    quote=sentence,
+                    source_locator=chunk.chunk_id,
+                    confidence=raw_confidence,
+                )
+            )
+            link_hash = hashlib.sha1(f"{claim_id}|{evidence_id}".encode("utf-8")).hexdigest()[:16]
             relation = "supports" if claim_type == "result" else "contextualizes"
             links.append(
                 ClaimEvidenceLink(
                     link_id=f"link-{link_hash}",
                     claim_id=claim_id,
-                    evidence_chunk_id=chunk.chunk_id,
+                    evidence_id=evidence_id,
                     relation=relation,
                     confidence=min(0.96, raw_confidence + 0.03),
                 )
             )
-    return claims, links
+    return claims, evidence, links
 
 
 def _classify_claim(sentence: str, section_title: str) -> tuple[str | None, float]:
