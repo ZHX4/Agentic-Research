@@ -15,7 +15,11 @@ class GapStatus(StrEnum):
 
 
 class GapCandidate(BaseModel):
-    """Evidence-aware representation of a possible research gap."""
+    """Evidence-aware representation of a possible research gap.
+
+    Phase 4 may only create candidates. Phase 5 is responsible for adversarial
+    verification and any status transition away from ``candidate``.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -26,6 +30,7 @@ class GapCandidate(BaseModel):
         "underexplored_condition",
         "unresolved_limitation",
         "cross_domain",
+        "graph_negative_space",
     ]
     statement: str = Field(min_length=1)
     method: str | None = None
@@ -35,6 +40,10 @@ class GapCandidate(BaseModel):
     closest_prior_work_ids: list[str] = Field(default_factory=list)
     counterevidence_ids: list[str] = Field(default_factory=list)
     search_queries: list[str] = Field(default_factory=list)
+    signal_ids: list[str] = Field(default_factory=list)
+    support_count: int = Field(default=0, ge=0)
+    coverage_ratio: float | None = Field(default=None, ge=0, le=1)
+    structural_support: float = Field(default=0, ge=0, le=1)
     confidence: float = Field(ge=0, le=1)
     status: GapStatus = GapStatus.CANDIDATE
     rationale: str = Field(min_length=1)
