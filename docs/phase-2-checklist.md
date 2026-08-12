@@ -9,6 +9,7 @@
 - [x] Figure/image extraction and caption detection
 - [x] Reference extraction
 - [x] Numeric citation-edge ingestion
+- [x] Common author-year citation-edge ingestion
 - [x] Structured candidate field extraction
 - [x] Claim extraction
 - [x] Explicit Evidence objects
@@ -16,9 +17,11 @@
 - [x] Raw confidence scores
 - [x] Calibration report (ECE, MCE, Brier)
 - [x] Isotonic calibration model with serialization
+- [x] Content-addressed extraction IDs
 - [x] End-to-end paper intelligence pipeline
 - [x] `analyze` CLI command
 - [x] `calibrate` CLI command
+- [x] `fit-calibrator` CLI command
 - [x] Offline regression tests
 - [x] Phase 2 acceptance documentation
 - [ ] Local clean-checkout execution by the developer
