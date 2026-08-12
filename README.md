@@ -1,8 +1,8 @@
 # Agentic-Research
 
-An evidence-grounded research-agent system for scientific literature intelligence, gap discovery, adversarial novelty verification, hypothesis reasoning, and reproducible experimental validation.
+An evidence-grounded research-agent system for scientific literature intelligence, gap discovery, adversarial novelty verification, hypothesis reasoning, reproducible experimental validation, and rigorous evaluation.
 
-> **Status:** Phase 7 implemented. Phases 0–7 are complete; Phase 8 has not started.
+> **Status:** Phase 8 implemented. Phases 0–8 are complete; Phase 9 has not started.
 
 ## Research objective
 
@@ -26,68 +26,67 @@ Phase 4 Gap Discovery
 Phase 5 Adversarial Novelty Verification
       ↓
 Phase 6 Hypothesis Factory
-      ├── generation
-      ├── diversity / clustering
-      ├── reflection
-      ├── tournament
-      ├── evolution
-      └── Pareto selection
       ↓
 Phase 7 Scientific Execution
-      ├── experiment planning
-      ├── falsification planning
-      ├── dataset manifests + hashes
-      ├── Docker sandbox
-      ├── multi-seed execution
-      ├── metrics + artifact collection
-      └── experiment search tree
       ↓
-Phase 8 Evaluation (future)
+Phase 8 Evaluation
+      ├── retrieval / extraction benchmarks
+      ├── gap / novelty benchmarks
+      ├── temporal leakage benchmark
+      ├── human evaluation
+      ├── baselines / ablations
+      ├── cost / compute accounting
+      └── composite EvaluationReport
+      ↓
+Phase 9 Autonomous Discovery (future)
 ```
 
-## Phase 7: scientific execution
+## Phase 8: evaluation
 
-Plan an experiment from a selected hypothesis:
+Run a retrieval benchmark:
 
 ```bash
-agentic-research-execution plan \
-  --hypothesis-run artifacts/hypothesis-run.json \
-  --hypothesis-id <HYPOTHESIS_ID> \
-  --code experiments/run.py \
-  --command python \
-  --command run.py \
-  --primary-metric accuracy \
-  --output artifacts/experiment.json
+agentic-research-evaluation retrieval \
+  --cases benchmarks/retrieval.test.json \
+  --predictions artifacts/retrieval.json \
+  --system-name agentic-research \
+  --output artifacts/evaluation/retrieval.json
 ```
 
-Execute the plan in the restricted Docker sandbox:
+Run the temporal leakage benchmark:
 
 ```bash
-agentic-research-execution execute \
-  --spec artifacts/experiment.json \
-  --code-dir experiments \
-  --output-dir artifacts/runs/experiment \
-  --result artifacts/results/experiment.json
+agentic-research-evaluation temporal \
+  --cases benchmarks/temporal.test.json \
+  --predictions artifacts/temporal.json \
+  --system-name agentic-research \
+  --output artifacts/evaluation/temporal.json
 ```
 
-By default, the sandbox disables network access, mounts code and datasets read-only, exposes only `/outputs` as writable, drops Linux capabilities, uses `no-new-privileges`, limits CPU/memory/PIDs, and enforces a timeout.
+Build a composite evaluation report:
 
-Experiments should write their metrics to `$AGENTIC_RESEARCH_OUTPUT_DIR/metrics.json` using the documented Phase 7 metric contract.
+```bash
+agentic-research-evaluation report \
+  --system-name agentic-research \
+  --benchmark artifacts/evaluation/retrieval.json \
+  --benchmark artifacts/evaluation/temporal.json \
+  --output artifacts/evaluation/report.json
+```
 
-## Scientific integrity rules
+## Phase 8 evaluation guarantees
 
-1. Disproved gaps cannot generate hypotheses.
-2. Hypotheses are not treated as experimentally validated until Phase 7 evidence exists.
-3. Every hypothesis has an explicit falsification condition.
-4. Generation is separated from reflection and selection.
-5. Every execution checks the planned code SHA-256 before launch.
-6. Every local dataset is hash-verified before mounting.
-7. Multi-seed results are recorded separately before aggregation.
-8. Failed/partial execution is not converted into a scientific conclusion.
-9. Falsification is determined only from explicit prespecified criteria.
-10. Every artifact, stdout/stderr stream, command, and environment fingerprint is recorded.
-11. Sandbox execution is deny-by-default and never receives privileged Docker flags from experiment argv.
-12. Phase 7 does not perform autonomous discovery or publication.
+1. Retrieval uses fixed expected IDs and reports Precision@k, Recall@k, F1@k, MRR, MAP@k, and nDCG@k.
+2. Extraction evaluation uses frozen expected fields and reports exact match plus macro field F1.
+3. Gap and novelty labels are evaluated against frozen benchmark cases rather than generated self-labels.
+4. Temporal evaluation is isolated and reports future-item leakage separately from unknown-year coverage.
+5. Human evaluation requires at least two annotators and two ratings per evaluated item.
+6. Baseline comparisons require an explicit higher-is-better/lower-is-better metric direction.
+7. Oracle baselines must disclose their information access.
+8. Ablations preserve matched case IDs and report absolute and relative deltas.
+9. Cost accounting records wall time and optional CPU/GPU/memory/token/USD measures.
+10. Bootstrap confidence intervals use deterministic seeded resampling.
+11. Evaluation reports are content-derived and retain the IDs of their component artifacts.
+12. Phase 8 never uses evaluation results to retroactively alter the benchmark cases being evaluated.
 
 ## Repository layout
 
@@ -101,6 +100,7 @@ src/agentic_research/
   verification/ Phase 5 Devil's Advocate and novelty verification
   hypotheses/    Phase 6 generation, reflection, clustering, evolution, selection
   execution/     Phase 7 planner, sandbox, runner, metrics, search tree
+  evaluation/   Phase 8 benchmarks, human eval, baselines, ablations, cost accounting
   schemas/       canonical scientific contracts
   agents/        provider-independent agent contracts
 
@@ -124,6 +124,7 @@ python -m agentic_research.cli --help
 agentic-research-verify --help
 agentic-research-hypotheses --help
 agentic-research-execution --help
+agentic-research-evaluation --help
 ```
 
 ## Phase gates
@@ -136,7 +137,8 @@ agentic-research-execution --help
 - [x] [Phase 5](docs/phase-5.md)
 - [x] [Phase 6](docs/phase-6.md)
 - [x] [Phase 7](docs/phase-7.md)
-- [ ] Phase 8
+- [x] [Phase 8](docs/phase-8.md)
+- [ ] Phase 9
 
 ## Roadmap
 
@@ -148,6 +150,6 @@ agentic-research-execution --help
 - [x] Phase 5 adversarial novelty verification
 - [x] Phase 6 hypothesis reasoning
 - [x] Phase 7 scientific execution
-- [ ] Phase 8 evaluation
+- [x] Phase 8 evaluation
 - [ ] Phase 9 autonomous discovery
 - [ ] Phase 10 publication
