@@ -1,4 +1,4 @@
-"""Phase 5 schemas for adversarial gap and novelty verification."""
+"""Phase 5 schemas for adversarial research-gap and novelty verification."""
 
 from __future__ import annotations
 
@@ -118,9 +118,14 @@ class NoveltyVerificationReport(BaseModel):
 
     @model_validator(mode="after")
     def validate_integrity(self) -> "NoveltyVerificationReport":
+        if self.input_candidate_count != len(self.results):
+            raise ValueError("input_candidate_count must equal the number of verification results")
         ids = [result.verification_id for result in self.results]
         if len(ids) != len(set(ids)):
             raise ValueError("Duplicate verification_id values are not allowed")
+        gap_ids = [result.gap_id for result in self.results]
+        if len(gap_ids) != len(set(gap_ids)):
+            raise ValueError("Duplicate gap_id values are not allowed")
         for result in self.results:
             if result.gap_id != result.verified_candidate.gap_id:
                 raise ValueError("gap_id must match verified_candidate.gap_id")
