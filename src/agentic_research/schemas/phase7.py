@@ -68,6 +68,7 @@ class ExperimentSpec(BaseModel):
     hypothesis_id: str = Field(min_length=1)
     research_question: str = Field(min_length=1)
     command: list[str] = Field(min_length=1)
+    code_path: str = Field(min_length=1)
     code_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     datasets: list[DatasetManifest] = Field(default_factory=list)
     baselines: list[str] = Field(default_factory=list)
@@ -85,6 +86,8 @@ class ExperimentSpec(BaseModel):
             raise ValueError("Experiment seeds must be non-negative")
         if self.falsification.hypothesis_id != self.hypothesis_id:
             raise ValueError("Falsification plan must target the same hypothesis")
+        if Path(self.code_path).is_absolute() or ".." in Path(self.code_path).parts:
+            raise ValueError("code_path must be relative and cannot escape the code directory")
         return self
 
 
