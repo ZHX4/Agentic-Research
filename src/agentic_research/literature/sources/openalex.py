@@ -94,11 +94,13 @@ def _paper_from_openalex(raw: dict[str, Any]) -> Paper:
     ]
     primary_location = raw.get("primary_location") or {}
     landing_page = primary_location.get("landing_page_url")
+    pdf_url = primary_location.get("pdf_url")
     source_id = raw.get("id")
     source_key = source_id.split("/")[-1] if isinstance(source_id, str) else str(source_id or "")
     metadata = {
         "source_ids": {"openalex": source_key},
         "open_access": raw.get("open_access") or {},
+        "open_access_pdf_url": pdf_url,
         "type": raw.get("type"),
         "citation_count": raw.get("cited_by_count", 0),
     }
