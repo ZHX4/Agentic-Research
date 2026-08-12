@@ -9,7 +9,7 @@ runner = CliRunner()
 def test_cli_help_exposes_phase_commands() -> None:
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for command in ["search", "acquire", "parse", "analyze", "index", "retrieve", "traverse", "calibrate", "fit-calibrator"]:
+    for command in ["search", "acquire", "parse", "analyze", "index", "retrieve", "traverse", "discover-gaps", "calibrate", "fit-calibrator"]:
         assert command in result.stdout
 
 
