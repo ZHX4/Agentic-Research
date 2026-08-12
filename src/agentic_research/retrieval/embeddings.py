@@ -10,6 +10,7 @@ class EmbeddingProvider(ABC):
     """Stable interface for embedding backends."""
 
     name: str
+    model_id: str
     dimension: int
 
     @abstractmethod
@@ -18,11 +19,7 @@ class EmbeddingProvider(ABC):
 
 
 class HashEmbeddingProvider(EmbeddingProvider):
-    """Deterministic local embedding used for tests and offline development.
-
-    This is intentionally not presented as a semantic embedding model. It is a
-    stable feature-hashing baseline that exercises the complete vector path.
-    """
+    """Deterministic feature-hashing baseline for tests and offline development."""
 
     name = "hash"
 
@@ -30,6 +27,7 @@ class HashEmbeddingProvider(EmbeddingProvider):
         if dimension < 8:
             raise ValueError("dimension must be at least 8")
         self.dimension = dimension
+        self.model_id = f"hash:{dimension}"
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
         return [self._embed_one(text) for text in texts]
@@ -49,11 +47,7 @@ class HashEmbeddingProvider(EmbeddingProvider):
 
 
 class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
-    """Production embedding adapter backed by sentence-transformers.
-
-    The dependency is optional so the core repository remains lightweight; install
-    the `embeddings` extra to use this provider.
-    """
+    """Production embedding adapter backed by sentence-transformers."""
 
     name = "sentence-transformers"
 
@@ -66,6 +60,7 @@ class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
             ) from exc
         self._model = SentenceTransformer(model_name)
         self.model_name = model_name
+        self.model_id = model_name
         self.dimension = int(self._model.get_sentence_embedding_dimension())
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
