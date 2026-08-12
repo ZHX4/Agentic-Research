@@ -41,11 +41,15 @@
 - [x] reranking
 - [x] citation traversal
 - [x] metadata filters
-- [x] hybrid retrieval
-- [x] scientific knowledge graph
+- [x] temporal filtering
+- [x] hybrid retrieval with Reciprocal Rank Fusion
+- [x] scientific knowledge graph/world model
 - [x] model-isolated vector storage
 - [x] persistent SQLite world model
 - [x] retrieval CLI
+- [x] deterministic offline regression coverage
+
+> Live GitHub Actions execution is currently blocked by an account billing lock. The failed runs are infrastructure failures before the job starts, not repository test failures. See `docs/phase-3-checklist.md`.
 
 ## Phase 4 — Gap discovery
 
