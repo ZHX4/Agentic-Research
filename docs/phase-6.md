@@ -48,9 +48,10 @@ The deterministic factory intentionally produces multiple research styles rather
 2. conservative mechanism isolation;
 3. high-risk interaction/failure-boundary study;
 4. composition with an adjacent technique;
-5. preregistered replication/bounding study.
+5. preregistered replication/bounding study;
+6. controlled stress-test across perturbation regimes.
 
-Cross-gap composition is separately bounded by `max_composed_pairs` and cannot combine two hypotheses from the same gap.
+Cross-gap composition is separately bounded by `max_composed_pairs` and cannot combine two hypotheses from the same gap. Same-gap pairs do not consume the composition budget.
 
 ## Diversity and clustering
 
@@ -69,7 +70,7 @@ Every generated hypothesis receives structured criticism covering:
 
 ## Tournament and evolution
 
-Tournament ranking is deterministic and tie-broken by reflection score and hypothesis ID. Evolution adds an explicit matched-control constraint and re-runs reflection. A bounded number of generations is used.
+Tournament ranking is deterministic and tie-broken by reflection score and hypothesis ID. Evolution adds an explicit matched-control constraint and re-runs reflection. A bounded number of generations is used, and evolved hypotheses retain complete upstream lineage.
 
 ## Pareto selection
 
@@ -83,17 +84,19 @@ agentic-research-hypotheses reason \
   --output artifacts/hypothesis-run.json
 ```
 
-Useful controls include hypothesis count per gap, pair-composition budget, dedup threshold, tournament size/rounds, Pareto limit, evolution generations, uncertain-gap opt-in, and clustering threshold.
+Useful controls include hypothesis count per gap, pair-composition budget, dedup threshold, tournament size/rounds, Pareto limit, evolution generations, minimum accepted gap status, uncertain-gap opt-in, and clustering threshold.
 
 ## Safeguards
 
 1. Disproved gaps cannot generate hypotheses.
 2. Uncertain gaps are excluded unless explicitly enabled.
-3. No Phase 6 component executes code or experiments.
-4. No hypothesis is treated as experimentally validated.
-5. Falsification conditions are mandatory fields.
-6. Every selected hypothesis retains upstream gap IDs.
-7. Run IDs are deterministic for the same gaps/configuration.
-8. Evolved hypotheses remain serialized in the run artifact.
-9. Pareto and selected IDs must refer to serialized candidates.
-10. Empty eligible input produces an explicit warning rather than fabricated hypotheses.
+3. Invalid minimum-gap statuses are rejected by configuration validation.
+4. No Phase 6 component executes code or experiments.
+5. No hypothesis is treated as experimentally validated.
+6. Falsification conditions are mandatory fields.
+7. Every selected hypothesis retains upstream gap IDs and source statuses.
+8. Run IDs are deterministic for the same gaps/configuration.
+9. Evolved hypotheses remain serialized in the run artifact.
+10. Pareto and selected IDs must refer to serialized candidates.
+11. Empty eligible input produces an explicit warning rather than fabricated hypotheses.
+12. Composition skips incompatible same-gap pairs without consuming the pair budget.
