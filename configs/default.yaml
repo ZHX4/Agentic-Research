@@ -1,6 +1,6 @@
 project:
   name: Agentic-Research
-  version: 0.5.0
+  version: 0.6.0
 
 research:
   domain: "AI/ML research"
@@ -20,6 +20,7 @@ safety:
   require_sandbox_for_generated_code: true
   temporal_cutoff_enforced: true
   phase4_candidate_only: true
+  phase5_no_global_novelty_claim: true
 
 providers:
   llm: mock
@@ -54,6 +55,17 @@ phase4:
   min_common_neighbors: 2
   max_underexplored_coverage: 0.2
   max_candidates_per_type: 200
+
+phase5:
+  external_results_per_query: 10
+  local_results_per_query: 10
+  max_queries_per_gap: 12
+  min_direct_similarity: 0.92
+  near_match_similarity: 0.72
+  min_broad_searches: 3
+  include_local: true
+  include_external: true
+  allow_status_transition: true
 
 storage:
   mode: sqlite-world-model
