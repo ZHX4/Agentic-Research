@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from typing import Sequence
 
 from agentic_research.retrieval.embeddings import EmbeddingProvider, cosine_similarity
@@ -13,14 +14,7 @@ from agentic_research.world_model.store import ScientificWorldModel
 class HybridRetriever:
     """Hybrid lexical/dense retriever with reciprocal-rank fusion."""
 
-    def __init__(
-        self,
-        world: ScientificWorldModel,
-        *,
-        embedder: EmbeddingProvider | None = None,
-        reranker: Reranker | None = None,
-        rrf_k: int = 60,
-    ) -> None:
+    def __init__(self, world: ScientificWorldModel, *, embedder: EmbeddingProvider | None = None, reranker: Reranker | None = None, rrf_k: int = 60) -> None:
         if rrf_k < 1:
             raise ValueError("rrf_k must be positive")
         self.world = world
@@ -28,15 +22,7 @@ class HybridRetriever:
         self.reranker = reranker
         self.rrf_k = rrf_k
 
-    def search(
-        self,
-        query: str,
-        *,
-        limit: int = 10,
-        mode: str = "hybrid",
-        filters: RetrievalFilters | None = None,
-        candidate_limit: int | None = None,
-    ) -> RetrievalResponse:
+    def search(self, query: str, *, limit: int = 10, mode: str = "hybrid", filters: RetrievalFilters | None = None, candidate_limit: int | None = None) -> RetrievalResponse:
         if not query.strip():
             raise ValueError("query must not be empty")
         if limit < 1:
@@ -54,12 +40,11 @@ class HybridRetriever:
         hits_by_id: dict[str, RetrievalHit] = {}
         lexical_rank = {row["chunk_id"]: rank for rank, row in enumerate(lexical_rows, start=1)}
         dense_rank = {row["chunk_id"]: rank for rank, row in enumerate(dense_rows, start=1)}
-        lexical_score_by_id = {row["chunk_id"]: max(0.0, -float(row["rank"])) for row in lexical_rows}
+        lexical_score_by_id = {row["chunk_id"]: 1.0 / rank for rank, row in enumerate(lexical_rows, start=1)}
         dense_score_by_id = {row["chunk_id"]: self._dense_score(query, row) for row in dense_rows}
+        row_by_id: dict[str, sqlite3.Row] = {row["chunk_id"]: row for row in [*lexical_rows, *dense_rows]}
 
-        row_by_id = {row["chunk_id"]: row for row in lexical_rows + dense_rows}
-        all_ids = set(lexical_rank) | set(dense_rank)
-        for chunk_id in all_ids:
+        for chunk_id in set(lexical_rank) | set(dense_rank):
             row = row_by_id[chunk_id]
             fused = 0.0
             reasons: list[str] = []
@@ -88,21 +73,20 @@ class HybridRetriever:
         ranked = sorted(hits_by_id.values(), key=lambda hit: (-hit.fused_score, hit.chunk_id))[:candidate_limit]
         if self.reranker is not None and ranked:
             ranked = self.reranker.rerank(query, ranked)
-        ranked = ranked[:limit]
-        return RetrievalResponse(query=query, mode=mode, hits=ranked)
+        return RetrievalResponse(query=query, mode=mode, hits=ranked[:limit])
 
-    def _dense_rows(self, query: str, limit: int, filters: dict[str, object]) -> list[object]:
+    def _dense_rows(self, query: str, limit: int, filters: dict[str, object]) -> list[sqlite3.Row]:
         if self.embedder is None:
             return []
         query_vector = self.embedder.embed([query])[0]
-        scored: list[tuple[float, object]] = []
+        scored: list[tuple[float, sqlite3.Row]] = []
         for row in self.world.dense_candidates(filters=filters):
             score = self._cosine_from_blob(query_vector, row["vector"], int(row["vector_dim"]))
             scored.append((score, row))
         scored.sort(key=lambda pair: (-pair[0], pair[1]["chunk_id"]))
         return [row for _, row in scored[:limit]]
 
-    def _dense_score(self, query: str, row: object) -> float:
+    def _dense_score(self, query: str, row: sqlite3.Row) -> float:
         if self.embedder is None:
             return 0.0
         vector = self.embedder.embed([query])[0]
