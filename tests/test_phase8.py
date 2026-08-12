@@ -9,8 +9,9 @@ from agentic_research.evaluation.cli import app
 from agentic_research.evaluation.comparison import compare_baselines, evaluate_ablation, summarize_costs
 from agentic_research.evaluation.engine import evaluate_extraction, evaluate_labels, evaluate_retrieval, evaluate_temporal
 from agentic_research.evaluation.human import evaluate_human_ratings
-from agentic_research.evaluation.metrics import average_precision_at_k, cohen_kappa, ndcg_at_k, temporal_leakage
-from agentic_research.schemas.phase8 import AblationSpec, BenchmarkCase, CostRecord, HumanRating, PredictionRecord
+from agentic_research.evaluation.metrics import average_precision_at_k, bootstrap_mean_ci, cohen_kappa, macro_field_f1, ndcg_at_k, temporal_leakage
+from agentic_research.evaluation.report import build_report
+from agentic_research.schemas.phase8 import AblationSpec, BenchmarkCase, BenchmarkResult, CostRecord, HumanRating, PredictionRecord
 
 
 def h(value: str) -> str:
@@ -27,6 +28,12 @@ def test_retrieval_metrics_are_correct() -> None:
     assert ndcg_at_k(["a", "x", "b"], {"a", "b"}, 3) == pytest.approx(expected)
 
 
+def test_mrr_rejects_mismatched_lengths() -> None:
+    from agentic_research.evaluation.metrics import mean_reciprocal_rank
+    with pytest.raises(ValueError):
+        mean_reciprocal_rank([["a"]], [])
+
+
 def test_retrieval_benchmark_runs() -> None:
     result = evaluate_retrieval([retrieval_case()], [PredictionRecord(case_id="c1", predicted_ids=["a", "b"])], system_name="test", benchmark_id="r")
     assert result.cases_evaluated == 1
@@ -37,6 +44,7 @@ def test_extraction_and_label_benchmarks() -> None:
     case = BenchmarkCase(case_id="c1", kind="extraction", input_hash=h("c1"), expected_fields={"method": "M"})
     extraction = evaluate_extraction([case], [PredictionRecord(case_id="c1", extracted_fields={"method": "M"})], system_name="test", benchmark_id="e")
     assert extraction.metrics[0].value == 1.0
+    assert macro_field_f1([{"method": "M improves RAG"}], [{"method": "M improves retrieval"}]) > 0.5
     gap_case = BenchmarkCase(case_id="g1", kind="gap", input_hash=h("g1"), expected_labels=["positive"])
     labels = evaluate_labels([gap_case], [PredictionRecord(case_id="g1", predicted_labels=["positive"])], kind="gap", system_name="test", benchmark_id="g")
     assert labels.metrics[0].value == 1.0
@@ -76,9 +84,23 @@ def test_cost_summary() -> None:
     assert "total_estimated_cost_usd" in names
 
 
+def test_bootstrap_is_deterministic() -> None:
+    assert bootstrap_mean_ci([1.0, 2.0, 3.0], seed=42) == bootstrap_mean_ci([1.0, 2.0, 3.0], seed=42)
+
+
+def test_composite_report_is_content_addressed(tmp_path) -> None:
+    benchmark = BenchmarkResult(run_id="eval:1", benchmark_id="r", kind="retrieval", system_name="test", split="test", metrics=[], cases_evaluated=1)
+    benchmark_path = tmp_path / "benchmark.json"
+    benchmark_path.write_text(benchmark.model_dump_json(), encoding="utf-8")
+    first = build_report("test", benchmark_files=[benchmark_path])
+    second = build_report("test", benchmark_files=[benchmark_path])
+    assert first.report_id == second.report_id
+
+
 def test_cli_surface() -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
     assert "retrieval" in result.stdout
     assert "temporal" in result.stdout
+    assert "report" in result.stdout
