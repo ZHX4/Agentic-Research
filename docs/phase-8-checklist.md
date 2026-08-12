@@ -7,6 +7,7 @@
 - [x] Novelty classification benchmark
 - [x] Dedicated temporal benchmark with cutoff enforcement
 - [x] Temporal leakage and unknown-year accounting
+- [x] Train/dev/test case-ID and input-hash disjointness validation
 - [x] Multi-rater human evaluation
 - [x] Cohen's kappa and Krippendorff alpha
 - [x] Baseline comparison with explicit metric direction
