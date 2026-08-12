@@ -7,19 +7,23 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class AgentContext(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    """Structured state supplied to an agent."""
 
-    run_id: str
-    research_goal: str
+    model_config = ConfigDict(extra="forbid")
+
+    run_id: str = Field(min_length=1)
+    research_goal: str = Field(min_length=1)
     inputs: dict[str, Any] = Field(default_factory=dict)
     evidence_ids: list[str] = Field(default_factory=list)
 
 
 class AgentResult(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    """Structured result returned by an agent."""
 
-    agent: str
-    status: str
+    model_config = ConfigDict(extra="forbid")
+
+    agent: str = Field(min_length=1)
+    status: str = Field(min_length=1)
     outputs: dict[str, Any] = Field(default_factory=dict)
     evidence_ids: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
