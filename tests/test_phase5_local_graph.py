@@ -1,7 +1,7 @@
 import hashlib
 from pathlib import Path
 
-from agentic_research.schemas import GapCandidate
+from agentic_research.schemas import GapCandidate, Paper
 from agentic_research.schemas.gap import GapStatus
 from agentic_research.schemas.phase3 import WorldEdge, WorldNode
 from agentic_research.schemas.phase5 import NoveltyVerificationConfig
@@ -34,7 +34,7 @@ def _entity_id(kind: str, value: str) -> str:
 
 def test_local_world_graph_exact_match_is_disproof(tmp_path: Path) -> None:
     with ScientificWorldModel(tmp_path / "world.sqlite") as world:
-        world.upsert_paper(__import__("agentic_research.schemas", fromlist=["Paper"]).Paper(paper_id="prior", title="Prior", year=2024))
+        world.upsert_paper(Paper(paper_id="prior", title="Prior", year=2024))
         paper_node = "paper:prior"
         world.upsert_node(WorldNode(node_id=paper_node, node_type="paper", paper_id="prior", label="Prior"))
         for value, kind, edge_type in (
@@ -44,7 +44,14 @@ def test_local_world_graph_exact_match_is_disproof(tmp_path: Path) -> None:
         ):
             node_id = _entity_id(kind, value)
             world.upsert_node(WorldNode(node_id=node_id, node_type=kind, label=value))
-            world.upsert_edge(WorldEdge(edge_id=f"{edge_type}:prior:{node_id}", source_id=paper_node, target_id=node_id, edge_type=edge_type))
+            world.upsert_edge(
+                WorldEdge(
+                    edge_id=f"{edge_type}:prior:{node_id}",
+                    source_id=paper_node,
+                    target_id=node_id,
+                    edge_type=edge_type,
+                )
+            )
         world.upsert_chunk(
             chunk_id="prior-chunk",
             paper_id="prior",
