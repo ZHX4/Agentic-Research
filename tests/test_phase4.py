@@ -4,21 +4,23 @@ from pathlib import Path
 
 from agentic_research.gaps.discovery import discover_gaps
 from agentic_research.schemas import Paper
-from agentic_research.schemas.phase4 import GapDiscoveryConfig
 from agentic_research.schemas.phase3 import WorldEdge, WorldNode
+from agentic_research.schemas.phase4 import GapDiscoveryConfig
 from agentic_research.world_model.store import ScientificWorldModel
 
 
 def _paper(paper_id: str, title: str, year: int, metadata: dict[str, object]) -> Paper:
-    return Paper(
-        paper_id=paper_id,
-        title=title,
-        year=year,
-        metadata=metadata,
-    )
+    return Paper(paper_id=paper_id, title=title, year=year, metadata=metadata)
 
 
-def _add_paper(world: ScientificWorldModel, paper: Paper, *, methods: list[str], datasets: list[str], tasks: list[str]) -> None:
+def _add_paper(
+    world: ScientificWorldModel,
+    paper: Paper,
+    *,
+    methods: list[str],
+    datasets: list[str],
+    tasks: list[str],
+) -> None:
     world.upsert_paper(paper)
     paper_node = f"paper:{paper.paper_id}"
     world.upsert_node(WorldNode(node_id=paper_node, node_type="paper", paper_id=paper.paper_id, label=paper.title))
@@ -31,22 +33,26 @@ def _add_paper(world: ScientificWorldModel, paper: Paper, *, methods: list[str],
             normalized = " ".join(value.lower().split())
             node_id = f"{field}:{normalized.replace(' ', '-') }"
             world.upsert_node(WorldNode(node_id=node_id, node_type=node_type, label=value))
-            world.upsert_edge(WorldEdge(
-                edge_id=f"{edge_type}:{paper.paper_id}:{node_id}",
-                source_id=paper_node,
-                target_id=node_id,
-                edge_type=edge_type,
-            ))
+            world.upsert_edge(
+                WorldEdge(
+                    edge_id=f"{edge_type}:{paper.paper_id}:{node_id}",
+                    source_id=paper_node,
+                    target_id=node_id,
+                    edge_type=edge_type,
+                )
+            )
 
 
 def _add_claim(world: ScientificWorldModel, claim_id: str, paper_id: str, text: str, claim_type: str) -> None:
-    world.upsert_node(WorldNode(
-        node_id=claim_id,
-        node_type="claim",
-        paper_id=paper_id,
-        label=text,
-        payload={"claim_type": claim_type},
-    ))
+    world.upsert_node(
+        WorldNode(
+            node_id=claim_id,
+            node_type="claim",
+            paper_id=paper_id,
+            label=text,
+            payload={"claim_type": claim_type},
+        )
+    )
 
 
 def test_missing_combination_is_candidate_only(tmp_path: Path) -> None:
@@ -65,10 +71,8 @@ def test_missing_combination_is_candidate_only(tmp_path: Path) -> None:
 
 def test_contradiction_requires_distinct_result_papers(tmp_path: Path) -> None:
     with ScientificWorldModel(tmp_path / "world.sqlite") as world:
-        p1 = _paper("p1", "Positive", 2024, {})
-        p2 = _paper("p2", "Negative", 2024, {})
-        _add_paper(world, p1, methods=[], datasets=[], tasks=[])
-        _add_paper(world, p2, methods=[], datasets=[], tasks=[])
+        _add_paper(world, _paper("p1", "Positive", 2024, {}), methods=[], datasets=[], tasks=[])
+        _add_paper(world, _paper("p2", "Negative", 2024, {}), methods=[], datasets=[], tasks=[])
         _add_claim(world, "c1", "p1", "method improves factual accuracy", "result")
         _add_claim(world, "c2", "p2", "method decreases factual accuracy", "result")
         result = discover_gaps(world, GapDiscoveryConfig(include_types={"contradiction"}))
@@ -105,11 +109,18 @@ def test_cross_domain_candidate_needs_missing_direct_combination(tmp_path: Path)
 
 def test_graph_negative_space_uses_common_task_neighbors(tmp_path: Path) -> None:
     with ScientificWorldModel(tmp_path / "world.sqlite") as world:
-        _add_paper(world, _paper("p1", "One", 2024, {}), methods=["method-a"], datasets=["dataset-z"], tasks=["task-1"])
-        _add_paper(world, _paper("p2", "Two", 2024, {}), methods=["method-a"], datasets=["dataset-y"], tasks=["task-2"])
-        _add_paper(world, _paper("p3", "Three", 2024, {}), methods=["method-b"], datasets=["dataset-z"], tasks=["task-2"])
-        _add_paper(world, _paper("p4", "Four", 2024, {}), methods=["method-b"], datasets=["dataset-y"], tasks=["task-1"])
-        result = discover_gaps(world, GapDiscoveryConfig(include_types={"graph_negative_space"}, min_graph_degree=2, min_common_neighbors=2))
+        _add_paper(world, _paper("m1", "Method One A", 2024, {}), methods=["method-a"], datasets=[], tasks=["task-1"])
+        _add_paper(world, _paper("m2", "Method One B", 2024, {}), methods=["method-a"], datasets=[], tasks=["task-2"])
+        _add_paper(world, _paper("d1", "Dataset One A", 2024, {}), methods=[], datasets=["dataset-z"], tasks=["task-1"])
+        _add_paper(world, _paper("d2", "Dataset One B", 2024, {}), methods=[], datasets=["dataset-z"], tasks=["task-2"])
+        result = discover_gaps(
+            world,
+            GapDiscoveryConfig(
+                include_types={"graph_negative_space"},
+                min_graph_degree=2,
+                min_common_neighbors=2,
+            ),
+        )
 
     assert result.candidates
     assert all(candidate.gap_type == "graph_negative_space" for candidate in result.candidates)
@@ -119,7 +130,10 @@ def test_temporal_cutoff_excludes_future_papers(tmp_path: Path) -> None:
     with ScientificWorldModel(tmp_path / "world.sqlite") as world:
         _add_paper(world, _paper("old", "Old", 2020, {}), methods=["method-a"], datasets=["dataset-a"], tasks=["task-a"])
         _add_paper(world, _paper("future", "Future", 2026, {}), methods=["method-b"], datasets=["dataset-b"], tasks=["task-b"])
-        result = discover_gaps(world, GapDiscoveryConfig(include_types={"missing_combination"}, min_entity_support=1, temporal_cutoff=2022))
+        result = discover_gaps(
+            world,
+            GapDiscoveryConfig(include_types={"missing_combination"}, min_entity_support=1, temporal_cutoff=2022),
+        )
 
     assert result.corpus_paper_count == 1
     assert all("future" not in candidate.evidence_paper_ids for candidate in result.candidates)
