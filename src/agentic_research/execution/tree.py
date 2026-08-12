@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import hashlib
+from typing import Literal
 
 from agentic_research.schemas.phase7 import ExperimentNode, ExperimentResult, ExperimentSearchTree, ExperimentSpec
+
+TreeRelation = Literal["mutation", "ablation", "replication", "branch"]
 
 
 def _id(*parts: str) -> str:
@@ -28,14 +31,17 @@ def create_tree(spec: ExperimentSpec) -> ExperimentSearchTree:
     )
 
 
-def append_result(tree: ExperimentSearchTree, result: ExperimentResult, relation: str = "replication") -> ExperimentSearchTree:
-    parent = next((node for node in reversed(tree.nodes) if node.status in {"planned", "running", "succeeded", "failed", "timeout", "rejected"}), tree.nodes[-1])
+def append_result(tree: ExperimentSearchTree, result: ExperimentResult, relation: TreeRelation = "replication") -> ExperimentSearchTree:
+    parent = next(
+        (node for node in reversed(tree.nodes) if node.status in {"planned", "running", "succeeded"}),
+        tree.nodes[-1],
+    )
     node = ExperimentNode(
         node_id=f"node:{_id(result.experiment_id, result.result_id)}",
         experiment_id=result.experiment_id,
         parent_node_id=parent.node_id,
         generation=parent.generation + 1,
-        relation=relation,  # type: ignore[arg-type]
+        relation=relation,
         status=result.status,
         result_id=result.result_id,
     )
