@@ -81,6 +81,16 @@ def test_negated_improvement_is_not_marked_positive(tmp_path: Path) -> None:
     assert result.candidates == []
 
 
+def test_negated_outperformance_is_not_marked_positive(tmp_path: Path) -> None:
+    with ScientificWorldModel(tmp_path / "world.sqlite") as world:
+        _add_paper(world, _paper("p1", "Negative", 2024, {}), methods=[], datasets=[], tasks=[])
+        _add_paper(world, _paper("p2", "Negative 2", 2024, {}), methods=[], datasets=[], tasks=[])
+        _add_claim(world, "c1", "p1", "method does not outperform baseline accuracy", "result")
+        _add_claim(world, "c2", "p2", "method does not outperform baseline accuracy", "result")
+        result = discover_gaps(world, GapDiscoveryConfig(include_types={"contradiction"}))
+    assert result.candidates == []
+
+
 def test_recurring_limitation_creates_candidate(tmp_path: Path) -> None:
     with ScientificWorldModel(tmp_path / "world.sqlite") as world:
         for paper_id in ("p1", "p2"):
