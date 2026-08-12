@@ -16,7 +16,6 @@ from agentic_research.literature.fulltext import FullTextAcquirer, FullTextManif
 from agentic_research.literature.settings import LiteratureSettings
 from agentic_research.literature.transport import HttpClient, RateLimiter
 from agentic_research.retrieval.contracts import SearchQuery
-from agentic_research.schemas import Paper
 from agentic_research.storage.jsonl import JsonlStore
 
 app = typer.Typer(help="Agentic-Research scientific discovery toolkit.")
@@ -110,7 +109,7 @@ def acquire(
     output: Path = typer.Option(..., help="Output JSONL acquisition manifest."),
     output_dir: Path = typer.Option(Path("artifacts/fulltext"), help="Directory for downloaded files."),
 ) -> None:
-    """Acquire available open full text and write immutable-style manifests."""
+    """Acquire available open full text and write acquisition manifests."""
     settings = LiteratureSettings()
     client = HttpClient(
         user_agent=settings.user_agent,
@@ -122,18 +121,7 @@ def acquire(
     try:
         count = 0
         for paper in load_papers(input):
-            try:
-                manifest = acquirer.acquire(paper)
-            except ValueError as exc:
-                manifest = FullTextManifest(
-                    paper_id=paper.paper_id,
-                    source="none",
-                    requested_url=paper.url or "https://example.invalid/",
-                    media_type="unknown",
-                    status="failed",
-                    error=str(exc),
-                )
-            store.append(manifest)
+            store.append(acquirer.acquire(paper))
             count += 1
         print(f"Wrote {count} full-text manifests to {output}")
     finally:
