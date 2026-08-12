@@ -19,6 +19,6 @@ __all__ = [
     "SearchProbe", "PriorWorkMatch", "Counterevidence", "NoveltyVerificationConfig", "GapVerificationResult", "NoveltyVerificationReport",
     "Hypothesis", "HypothesisCandidate", "HypothesisReflection", "HypothesisConfig", "HypothesisRun",
     "DatasetManifest", "FalsificationPlan", "SandboxPolicy", "ExperimentSpec", "MetricValue", "ArtifactRecord", "SeedRun", "ExperimentResult", "ExperimentNode", "ExperimentSearchTree",
-    "BenchmarkCase", "PredictionRecord", "MetricValue", "BenchmarkResult", "HumanRating", "HumanEvaluationResult",
+    "BenchmarkCase", "PredictionRecord", "BenchmarkResult", "HumanRating", "HumanEvaluationResult",
     "BaselineSpec", "BaselineComparison", "AblationSpec", "AblationResult", "CostRecord", "EvaluationReport",
 ]
