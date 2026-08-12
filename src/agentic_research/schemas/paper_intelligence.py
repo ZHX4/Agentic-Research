@@ -111,7 +111,7 @@ class ClaimEvidenceLink(BaseModel):
 
     link_id: str = Field(min_length=1)
     claim_id: str = Field(min_length=1)
-    evidence_chunk_id: str = Field(min_length=1)
+    evidence_id: str = Field(min_length=1)
     relation: Literal["supports", "qualifies", "contradicts", "contextualizes"]
     confidence: float = Field(ge=0, le=1)
 
