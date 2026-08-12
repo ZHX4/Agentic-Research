@@ -73,7 +73,8 @@ class DockerSandboxExecutor:
         if not code_dir.is_dir():
             raise FileNotFoundError(code_dir)
         code_path = (code_dir / spec.code_path).resolve()
-        if not code_path.exists() or code_dir.resolve() not in code_path.parents and code_path != code_dir.resolve():
+        code_root = code_dir.resolve()
+        if not code_path.exists() or (code_path != code_root and code_root not in code_path.parents):
             raise SandboxViolation("Planned code path must remain inside the supplied code directory")
         if self._sha256_path(code_path) != spec.code_sha256:
             raise SandboxViolation("Code SHA-256 does not match the planned experiment")
@@ -91,7 +92,7 @@ class DockerSandboxExecutor:
             "--memory", f"{spec.sandbox.memory_mb}m",
             "--cpus", str(spec.sandbox.cpu_count),
             "--tmpfs", "/tmp:rw,noexec,nosuid,size=512m",
-            "-v", f"{code_dir.resolve()}:{spec.sandbox.workdir}:ro",
+            "-v", f"{code_root}:{spec.sandbox.workdir}:ro",
             "-v", f"{artifact_dir.resolve()}:/outputs:rw",
             "-w", spec.sandbox.workdir,
         ]
@@ -103,7 +104,8 @@ class DockerSandboxExecutor:
                 raise SandboxViolation(f"Dataset path does not exist: {dataset.local_path}")
             if self._sha256_path(dataset_path) != dataset.sha256:
                 raise SandboxViolation(f"Dataset SHA-256 mismatch for {dataset.dataset_id}")
-            command += ["-v", f"{dataset_path}:{'/datasets/' + self._safe_name(dataset.dataset_id)}:ro"]
+            dataset_mount = "/datasets/" + self._safe_name(dataset.dataset_id)
+            command += ["-v", f"{dataset_path}:{dataset_mount}:ro"]
         if spec.sandbox.allow_gpu:
             command += ["--gpus", "all"]
         for key in spec.sandbox.allowed_env:
@@ -184,6 +186,10 @@ def _collect_artifacts(root: Path) -> list[ArtifactRecord]:
 
 
 def environment_fingerprint(spec: ExperimentSpec, image_digest: str) -> str:
+    allowed_environment = {
+        key: os.environ.get(key)
+        for key in sorted(spec.sandbox.allowed_env)
+    }
     payload = json.dumps(
         {
             "image": spec.sandbox.image,
@@ -193,6 +199,13 @@ def environment_fingerprint(spec: ExperimentSpec, image_digest: str) -> str:
             "memory_mb": spec.sandbox.memory_mb,
             "cpu_count": spec.sandbox.cpu_count,
             "pids_limit": spec.sandbox.pids_limit,
+            "allow_gpu": spec.sandbox.allow_gpu,
+            "allowed_env": allowed_environment,
+            "datasets": [
+                {"dataset_id": dataset.dataset_id, "version": dataset.version, "sha256": dataset.sha256}
+                for dataset in sorted(spec.datasets, key=lambda item: item.dataset_id)
+            ],
+            "code_sha256": spec.code_sha256,
         },
         sort_keys=True,
     ).encode("utf-8")
