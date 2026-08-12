@@ -1,6 +1,6 @@
 project:
   name: Agentic-Research
-  version: 0.4.0
+  version: 0.5.0
 
 research:
   domain: "AI/ML research"
@@ -19,6 +19,7 @@ safety:
   require_evidence_for_claims: true
   require_sandbox_for_generated_code: true
   temporal_cutoff_enforced: true
+  phase4_candidate_only: true
 
 providers:
   llm: mock
@@ -43,6 +44,16 @@ retrieval:
   reranker: "lexical"
   reranker_model: "cross-encoder/ms-marco-MiniLM-L6-v2"
   rrf_k: 60
+
+phase4:
+  min_entity_support: 2
+  min_contradiction_support: 2
+  min_condition_support: 1
+  min_limitation_support: 2
+  min_graph_degree: 2
+  min_common_neighbors: 2
+  max_underexplored_coverage: 0.2
+  max_candidates_per_type: 200
 
 storage:
   mode: sqlite-world-model
