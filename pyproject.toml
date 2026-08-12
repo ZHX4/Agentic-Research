@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentic-research"
-version = "0.7.0"
+version = "0.8.0"
 description = "Evidence-grounded scientific literature intelligence and research-agent system"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -35,6 +35,7 @@ all = [
 agentic-research = "agentic_research.cli:app"
 agentic-research-verify = "agentic_research.verification.cli:app"
 agentic-research-hypotheses = "agentic_research.hypotheses.cli:app"
+agentic-research-execution = "agentic_research.execution.cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentic_research"]
