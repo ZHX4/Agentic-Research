@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import typer
@@ -11,7 +10,7 @@ from agentic_research.literature.factory import build_literature_service
 from agentic_research.literature.settings import LiteratureSettings
 from agentic_research.schemas.phase4 import GapDiscoveryResult
 from agentic_research.schemas.phase5 import NoveltyVerificationConfig
-from agentic_research.verification.novelty import NoveltyVerifier
+from agentic_research.verification.policy import AdversarialNoveltyVerifier
 from agentic_research.world_model.store import ScientificWorldModel
 
 app = typer.Typer(help="Agentic-Research Phase 5 adversarial novelty verifier.")
@@ -50,12 +49,12 @@ def verify_gaps(
 
     settings = LiteratureSettings()
     service = build_literature_service(settings) if config.include_external else None
-    world = ScientificWorldModel(database) if config.include_local and database is not None else None
     if config.include_local and database is None:
         raise typer.BadParameter("--database is required unless --no-local is supplied")
+    world = ScientificWorldModel(database) if config.include_local and database is not None else None
 
     try:
-        verifier = NoveltyVerifier(world=world, literature_service=service)
+        verifier = AdversarialNoveltyVerifier(world=world, literature_service=service)
         report = verifier.verify_batch(discovery.candidates, config)
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(report.model_dump_json(indent=2), encoding="utf-8")
