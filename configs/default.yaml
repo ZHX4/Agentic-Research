@@ -1,6 +1,6 @@
 project:
   name: Agentic-Research
-  version: 0.6.0
+  version: 0.7.0
 
 research:
   domain: "AI/ML research"
@@ -21,6 +21,7 @@ safety:
   temporal_cutoff_enforced: true
   phase4_candidate_only: true
   phase5_no_global_novelty_claim: true
+  phase6_no_experimental_validation_claim: true
 
 providers:
   llm: mock
@@ -72,6 +73,20 @@ phase5:
   require_deep_verification_for_supported: true
   deep_verification_similarity_floor: 0.45
   fulltext_cache_dir: "artifacts/phase5-fulltext"
+
+phase6:
+  hypotheses_per_gap: 6
+  max_composed_pairs: 25
+  dedup_similarity_threshold: 0.82
+  tournament_size: 5
+  tournament_rounds: 3
+  pareto_limit: 12
+  keep_diverse_limit: 20
+  evolve_top_k: 6
+  max_evolution_generations: 2
+  min_gap_status: survived
+  allow_uncertain_gaps: false
+  clustering_threshold: 0.70
 
 storage:
   mode: sqlite-world-model
