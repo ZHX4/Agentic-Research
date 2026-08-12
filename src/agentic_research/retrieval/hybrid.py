@@ -80,7 +80,7 @@ class HybridRetriever:
             return []
         query_vector = self.embedder.embed([query])[0]
         scored: list[tuple[float, sqlite3.Row]] = []
-        for row in self.world.dense_candidates(filters=filters):
+        for row in self.world.dense_candidates(embedding_model=self.embedder.model_id, filters=filters):
             score = self._cosine_from_blob(query_vector, row["vector"], int(row["vector_dim"]))
             scored.append((score, row))
         scored.sort(key=lambda pair: (-pair[0], pair[1]["chunk_id"]))
