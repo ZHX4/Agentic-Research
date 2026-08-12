@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
-from urllib.parse import quote
 from xml.etree import ElementTree as ET
 
 from agentic_research.literature.identity import normalize_arxiv_id
@@ -24,10 +23,13 @@ class ArxivAdapter(LiteratureRetriever):
         self,
         *,
         client: HttpClient | None = None,
+        user_agent: str = "Agentic-Research/0.2 (+https://github.com/ZHX4/Agentic-Research)",
+        timeout_seconds: float = 30.0,
         min_interval_seconds: float = 3.0,
     ) -> None:
         self._client = client or HttpClient(
-            user_agent="Agentic-Research/0.2 (+https://github.com/ZHX4/Agentic-Research)",
+            user_agent=user_agent,
+            timeout_seconds=timeout_seconds,
             rate_limiter=RateLimiter(min_interval_seconds),
         )
         self._owns_client = client is None
@@ -39,10 +41,11 @@ class ArxivAdapter(LiteratureRetriever):
     def search(self, query: SearchQuery) -> list[SearchHit]:
         results: list[SearchHit] = []
         start = 0
+        escaped = query.text.replace('"', '\\"')
         while len(results) < query.limit:
             batch = min(100, query.limit - len(results))
             params = {
-                "search_query": f'all:"{quote(query.text, safe="")}"',
+                "search_query": f'all:"{escaped}"',
                 "start": start,
                 "max_results": batch,
                 "sortBy": "relevance",
@@ -99,14 +102,11 @@ def _paper_from_entry(entry: ET.Element) -> Paper:
     links = entry.findall(f"{{{_ATOM}}}link")
     abs_url = next((link.get("href") for link in links if link.get("rel") == "alternate"), None)
     pdf_url = next((link.get("href") for link in links if link.get("title") == "pdf"), None)
+    primary_category = entry.find(f"{{{_ARXIV}}}primary_category")
     metadata: dict[str, Any] = {
         "source_ids": {"arxiv": arxiv_id or ""},
         "open_access_pdf_url": pdf_url,
-        "primary_category": (
-            entry.find(f"{{{_ARXIV}}}primary_category").get("term")
-            if entry.find(f"{{{_ARXIV}}}primary_category") is not None
-            else None
-        ),
+        "primary_category": primary_category.get("term") if primary_category is not None else None,
     }
     return Paper(
         paper_id=arxiv_id or entry_id,
