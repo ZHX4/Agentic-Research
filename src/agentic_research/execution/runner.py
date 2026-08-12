@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import mean
 
-from agentic_research.execution.sandbox import DockerSandboxExecutor, environment_fingerprint
+from agentic_research.execution.sandbox import DockerSandboxExecutor, SandboxViolation, environment_fingerprint
 from agentic_research.schemas.phase7 import ExperimentResult, ExperimentSpec, MetricRecord, SeedRun
 
 
@@ -35,9 +36,18 @@ def _parse_metrics(run: SeedRun, artifact_dir: Path) -> SeedRun:
         return run.model_copy(update={"error": f"Invalid metrics.json: {exc}"})
 
 
+def _rejected_runs(spec: ExperimentSpec, message: str) -> list[SeedRun]:
+    return [SeedRun(seed=seed, status="rejected", duration_seconds=0.0, error=message) for seed in spec.seeds]
+
+
 def run_experiment(spec: ExperimentSpec, *, code_dir: Path, output_dir: Path, executor: DockerSandboxExecutor | None = None) -> ExperimentResult:
     runner = executor or DockerSandboxExecutor()
-    seed_runs = runner.execute(spec, code_dir=code_dir, output_dir=output_dir)
+    try:
+        seed_runs = runner.execute(spec, code_dir=code_dir, output_dir=output_dir)
+        image_digest = runner._image_digest(spec.sandbox.image)
+    except (SandboxViolation, FileNotFoundError, subprocess.CalledProcessError) as exc:
+        seed_runs = _rejected_runs(spec, str(exc))
+        image_digest = hashlib.sha256(spec.sandbox.image.encode("utf-8")).hexdigest()
     parsed = [_parse_metrics(run, output_dir / f"seed-{run.seed}") for run in seed_runs]
     status = "succeeded" if parsed and all(run.status == "succeeded" for run in parsed) and len(parsed) == len(spec.seeds) else "failed"
     if any(run.status == "timeout" for run in parsed):
@@ -45,7 +55,6 @@ def run_experiment(spec: ExperimentSpec, *, code_dir: Path, output_dir: Path, ex
     if any(run.status == "rejected" for run in parsed):
         status = "rejected"
     falsified, rationale = evaluate_falsification(spec, parsed)
-    image_digest = runner._image_digest(spec.sandbox.image)
     environment_sha = environment_fingerprint(spec, image_digest)
     command_sha = _command_hash(spec.command)
     return ExperimentResult(
