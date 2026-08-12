@@ -1,5 +1,4 @@
 """Phase 6 hypothesis-reasoning contracts."""
-
 from __future__ import annotations
 
 from typing import Literal
@@ -12,10 +11,7 @@ HypothesisOrigin = Literal["gap_direct", "gap_composed", "gap_conservative", "ga
 
 
 class Hypothesis(BaseModel):
-    """Evidence-grounded candidate hypothesis; not experimentally validated."""
-
     model_config = ConfigDict(extra="forbid")
-
     hypothesis_id: str = Field(min_length=1)
     statement: str = Field(min_length=1)
     research_question: str = Field(min_length=1)
@@ -37,22 +33,11 @@ class Hypothesis(BaseModel):
 
     @property
     def composite_score(self) -> float:
-        return (
-            0.22 * self.novelty_score
-            + 0.16 * self.evidence_score
-            + 0.17 * self.significance_score
-            + 0.17 * self.feasibility_score
-            + 0.10 * self.diversity_score
-            + 0.10 * self.robustness_score
-            + 0.08 * self.reflection_score
-        )
+        return 0.22 * self.novelty_score + 0.16 * self.evidence_score + 0.17 * self.significance_score + 0.17 * self.feasibility_score + 0.10 * self.diversity_score + 0.10 * self.robustness_score + 0.08 * self.reflection_score
 
 
 class HypothesisReflection(BaseModel):
-    """Structured criticism of a hypothesis before tournament selection."""
-
     model_config = ConfigDict(extra="forbid")
-
     reflection_id: str = Field(min_length=1)
     hypothesis_id: str = Field(min_length=1)
     strengths: list[str] = Field(default_factory=list)
@@ -65,19 +50,13 @@ class HypothesisReflection(BaseModel):
 
 
 class HypothesisCandidate(BaseModel):
-    """Generated hypothesis plus its reflection."""
-
     model_config = ConfigDict(extra="forbid")
-
     hypothesis: Hypothesis
     reflection: HypothesisReflection
 
 
 class HypothesisConfig(BaseModel):
-    """Controls for deterministic hypothesis generation and selection."""
-
     model_config = ConfigDict(extra="forbid")
-
     hypotheses_per_gap: int = Field(default=6, ge=1, le=50)
     max_composed_pairs: int = Field(default=25, ge=0, le=200)
     dedup_similarity_threshold: float = Field(default=0.82, ge=0, le=1)
@@ -89,6 +68,7 @@ class HypothesisConfig(BaseModel):
     max_evolution_generations: int = Field(default=2, ge=0, le=10)
     min_gap_status: GapStatus = GapStatus.SURVIVED
     allow_uncertain_gaps: bool = False
+    clustering_threshold: float = Field(default=0.70, ge=0, le=1)
 
     @model_validator(mode="after")
     def validate_limits(self) -> "HypothesisConfig":
@@ -98,16 +78,16 @@ class HypothesisConfig(BaseModel):
 
 
 class HypothesisRun(BaseModel):
-    """Auditable Phase 6 run output."""
-
     model_config = ConfigDict(extra="forbid")
-
     run_id: str = Field(min_length=1)
     input_gap_ids: list[str] = Field(default_factory=list)
+    initial_generated_count: int = Field(ge=0)
+    evolved_count: int = Field(ge=0)
     generated_count: int = Field(ge=0)
     reflected_count: int = Field(ge=0)
     selected_count: int = Field(ge=0)
     pareto_count: int = Field(ge=0)
+    cluster_count: int = Field(ge=0)
     candidates: list[HypothesisCandidate] = Field(default_factory=list)
     pareto_frontier_ids: list[str] = Field(default_factory=list)
     selected_hypothesis_ids: list[str] = Field(default_factory=list)
@@ -119,7 +99,9 @@ class HypothesisRun(BaseModel):
         if len(ids) != len(set(ids)):
             raise ValueError("Duplicate hypothesis IDs are not allowed")
         if self.generated_count != len(self.candidates):
-            raise ValueError("generated_count must equal candidate count")
+            raise ValueError("generated_count must equal total candidate count")
+        if self.initial_generated_count + self.evolved_count != self.generated_count:
+            raise ValueError("initial_generated_count + evolved_count must equal generated_count")
         candidate_ids = set(ids)
         if not set(self.pareto_frontier_ids) <= candidate_ids:
             raise ValueError("Pareto frontier IDs must refer to candidates")
