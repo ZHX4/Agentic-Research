@@ -1,6 +1,7 @@
 """Deterministic, dependency-light evaluation metrics."""
 from __future__ import annotations
 
+import re
 from collections import Counter
 from math import log2
 from statistics import mean
@@ -12,46 +13,45 @@ def _safe_div(num: float, den: float) -> float:
 
 
 def precision_recall_f1(predicted: Iterable[str], expected: Iterable[str]) -> tuple[float, float, float]:
-    pred, gold = set(predicted), set(expected)
-    tp = len(pred & gold)
+    pred, gold = set(predicted), set(expected); tp = len(pred & gold)
     precision = _safe_div(tp, len(pred)); recall = _safe_div(tp, len(gold))
     return precision, recall, _safe_div(2 * precision * recall, precision + recall)
 
 
 def mean_reciprocal_rank(predictions: list[list[str]], expected: list[set[str]]) -> float:
-    scores = []
-    for ranked, gold in zip(predictions, expected):
-        rr = next((1.0 / rank for rank, item in enumerate(ranked, start=1) if item in gold), 0.0)
-        scores.append(rr)
+    if len(predictions) != len(expected): raise ValueError("predictions and expected lengths must match")
+    scores = [next((1.0 / rank for rank, item in enumerate(ranked, start=1) if item in gold), 0.0) for ranked, gold in zip(predictions, expected)]
     return mean(scores) if scores else 0.0
 
 
 def ndcg_at_k(ranked: list[str], relevant: set[str], k: int) -> float:
     if k <= 0: return 0.0
-    dcg = sum(1.0 / log2(rank + 1) for rank, item in enumerate(ranked[:k], start=1) if item in relevant)
-    ideal_hits = min(len(relevant), k)
-    idcg = sum(1.0 / log2(rank + 1) for rank in range(1, ideal_hits + 1))
-    return _safe_div(dcg, idcg)
+    dcg = sum(1.0 / log2(rank + 1) for rank, item in enumerate(ranked[:k], start=1) if item in relevant); ideal_hits = min(len(relevant), k)
+    return _safe_div(dcg, sum(1.0 / log2(rank + 1) for rank in range(1, ideal_hits + 1)))
 
 
 def average_precision_at_k(ranked: list[str], relevant: set[str], k: int) -> float:
     if not relevant or k <= 0: return 0.0
     hits = 0; score = 0.0
     for rank, item in enumerate(ranked[:k], start=1):
-        if item in relevant:
-            hits += 1; score += hits / rank
+        if item in relevant: hits += 1; score += hits / rank
     return score / min(len(relevant), k)
+
+
+def _token_f1(predicted: str, expected: str) -> float:
+    pred_tokens = re.findall(r"\w+", predicted.casefold(), flags=re.UNICODE); gold_tokens = re.findall(r"\w+", expected.casefold(), flags=re.UNICODE)
+    if not pred_tokens and not gold_tokens: return 1.0
+    if not pred_tokens or not gold_tokens: return 0.0
+    pred_counts, gold_counts = Counter(pred_tokens), Counter(gold_tokens); overlap = sum((pred_counts & gold_counts).values())
+    precision = _safe_div(overlap, len(pred_tokens)); recall = _safe_div(overlap, len(gold_tokens))
+    return _safe_div(2 * precision * recall, precision + recall)
 
 
 def macro_field_f1(predicted: list[dict[str, str]], expected: list[dict[str, str]]) -> float:
     if len(predicted) != len(expected): raise ValueError("predicted and expected lengths must match")
     fields = sorted(set().union(*(item.keys() for item in expected), *(item.keys() for item in predicted))) if predicted or expected else []
     if not fields: return 0.0
-    values = []
-    for field in fields:
-        pred = {item.get(field, "") for item in predicted}; gold = {item.get(field, "") for item in expected}
-        _, _, f1 = precision_recall_f1(pred, gold); values.append(f1)
-    return mean(values)
+    return mean(mean(_token_f1(predicted[index].get(field, ""), expected[index].get(field, "")) for index in range(len(expected))) for field in fields)
 
 
 def binary_classification_metrics(predicted: list[str], expected: list[str], positive: str) -> dict[str, float]:
