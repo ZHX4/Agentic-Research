@@ -5,10 +5,10 @@ import hashlib
 import json
 import mimetypes
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 from agentic_research.schemas.phase7 import ArtifactRecord, ExperimentSpec, SeedRun
 
@@ -18,7 +18,7 @@ class SandboxViolation(RuntimeError):
 
 
 class DockerSandboxExecutor:
-    """Execute an ExperimentSpec using a non-privileged, network-disabled Docker container by default."""
+    """Execute an ExperimentSpec in a restricted Docker container."""
 
     def __init__(self, docker_binary: str = "docker") -> None:
         self.docker_binary = docker_binary
@@ -26,9 +26,9 @@ class DockerSandboxExecutor:
     def _validate_command(self, command: list[str]) -> None:
         if not command or any(not isinstance(token, str) or not token for token in command):
             raise SandboxViolation("Command must be a non-empty argv list")
-        forbidden = {"--privileged", "--network=host", "--pid=host", "--ipc=host"}
+        forbidden = {"--privileged", "--network=host", "--pid=host", "--ipc=host", "-v", "--volume"}
         if any(token in forbidden for token in command):
-            raise SandboxViolation("Forbidden Docker flags in experiment command")
+            raise SandboxViolation("Docker mount/privilege flags are forbidden inside experiment argv")
 
     def _image_digest(self, image: str) -> str:
         completed = subprocess.run(
@@ -39,6 +39,10 @@ class DockerSandboxExecutor:
         )
         return hashlib.sha256(completed.stdout.encode("utf-8")).hexdigest()
 
+    @staticmethod
+    def _safe_name(value: str) -> str:
+        return re.sub(r"[^A-Za-z0-9._-]+", "_", value)[:80] or "dataset"
+
     def execute_seed(self, spec: ExperimentSpec, *, seed: int, code_dir: Path, artifact_dir: Path) -> SeedRun:
         self._validate_command(spec.command)
         if seed not in spec.seeds:
@@ -46,7 +50,7 @@ class DockerSandboxExecutor:
         if not code_dir.is_dir():
             raise FileNotFoundError(code_dir)
         artifact_dir.mkdir(parents=True, exist_ok=True)
-        image_digest = self._image_digest(spec.sandbox.image)
+        self._image_digest(spec.sandbox.image)
         command = [self.docker_binary, "run", "--rm"]
         if spec.sandbox.read_only_root:
             command.append("--read-only")
@@ -60,14 +64,31 @@ class DockerSandboxExecutor:
             "--cpus", str(spec.sandbox.cpu_count),
             "--tmpfs", "/tmp:rw,noexec,nosuid,size=512m",
             "-v", f"{code_dir.resolve()}:{spec.sandbox.workdir}:ro",
+            "-v", f"{artifact_dir.resolve()}:/outputs:rw",
             "-w", spec.sandbox.workdir,
         ]
+        dataset_root = artifact_dir.parent / f"seed-{seed}-datasets"
+        for dataset in spec.datasets:
+            if not dataset.local_path:
+                continue
+            dataset_path = Path(dataset.local_path).resolve()
+            if not dataset_path.exists():
+                raise SandboxViolation(f"Dataset path does not exist: {dataset.local_path}")
+            dataset_root.mkdir(parents=True, exist_ok=True)
+            mount_target = f"/datasets/{self._safe_name(dataset.dataset_id)}"
+            command += ["-v", f"{dataset_path}:{mount_target}:ro"]
         if spec.sandbox.allow_gpu:
             command += ["--gpus", "all"]
         for key in spec.sandbox.allowed_env:
             if key in os.environ:
                 command += ["-e", f"{key}={os.environ[key]}"]
-        command += ["-e", f"AGENTIC_RESEARCH_SEED={seed}", spec.sandbox.image, *spec.command]
+        command += [
+            "-e", f"AGENTIC_RESEARCH_SEED={seed}",
+            "-e", "AGENTIC_RESEARCH_OUTPUT_DIR=/outputs",
+            "-e", "AGENTIC_RESEARCH_DATASET_ROOT=/datasets",
+            spec.sandbox.image,
+            *spec.command,
+        ]
         started = time.monotonic()
         status = "failed"
         exit_code: int | None = None
@@ -96,10 +117,8 @@ class DockerSandboxExecutor:
             status = "failed"
             error = str(exc)
         duration = time.monotonic() - started
-        stdout_path = artifact_dir / f"seed-{seed}.stdout"
-        stderr_path = artifact_dir / f"seed-{seed}.stderr"
-        stdout_path.write_bytes(stdout)
-        stderr_path.write_bytes(stderr)
+        (artifact_dir / f"seed-{seed}.stdout").write_bytes(stdout)
+        (artifact_dir / f"seed-{seed}.stderr").write_bytes(stderr)
         artifacts = _collect_artifacts(artifact_dir)
         return SeedRun(
             seed=seed,
@@ -117,8 +136,9 @@ class DockerSandboxExecutor:
         results: list[SeedRun] = []
         for seed in spec.seeds:
             seed_dir = output_dir / f"seed-{seed}"
-            results.append(self.execute_seed(spec, seed=seed, code_dir=code_dir, artifact_dir=seed_dir))
-            if results[-1].status == "rejected":
+            run = self.execute_seed(spec, seed=seed, code_dir=code_dir, artifact_dir=seed_dir)
+            results.append(run)
+            if run.status == "rejected":
                 break
         return results
 
