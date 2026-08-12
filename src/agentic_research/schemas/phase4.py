@@ -54,6 +54,7 @@ class GapSignal(BaseModel):
     statement: str = Field(min_length=1)
     paper_ids: list[str] = Field(default_factory=list)
     node_ids: list[str] = Field(default_factory=list)
+    entity_values: dict[str, str] = Field(default_factory=dict)
     support_count: int = Field(ge=0)
     structural_score: float = Field(ge=0, le=1)
     provenance: list[str] = Field(default_factory=list)
@@ -72,15 +73,15 @@ class GapDiscoveryResult(BaseModel):
 
     @model_validator(mode="after")
     def validate_signal_ids(self) -> "GapDiscoveryResult":
-        ids = [signal.signal_id for signal in self.signals]
-        if len(ids) != len(set(ids)):
+        signal_ids = [signal.signal_id for signal in self.signals]
+        if len(signal_ids) != len(set(signal_ids)):
             raise ValueError("Duplicate signal_id values are not allowed")
         candidate_ids = [candidate.gap_id for candidate in self.candidates]
         if len(candidate_ids) != len(set(candidate_ids)):
             raise ValueError("Duplicate gap_id values are not allowed")
-        signal_ids = set(ids)
+        known_signal_ids = set(signal_ids)
         for candidate in self.candidates:
-            if not set(candidate.signal_ids).issubset(signal_ids):
+            if not set(candidate.signal_ids).issubset(known_signal_ids):
                 raise ValueError(f"Candidate {candidate.gap_id} references an unknown signal")
             if candidate.status != "candidate":
                 raise ValueError("Phase 4 may only emit candidate gap status")
