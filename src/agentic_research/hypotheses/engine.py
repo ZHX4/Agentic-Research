@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import itertools
+import json
 import re
 from typing import Final
 
@@ -184,7 +185,7 @@ def run_hypothesis_reasoning(gaps: list[GapCandidate], config: HypothesisConfig 
         selected = _tournament(deduped, cfg)
     frontier = pareto_frontier(selected)[:cfg.pareto_limit]
     return HypothesisRun(
-        run_id=_id("hypothesis-run", *(sorted(g.gap_id for g in gaps)), cfg.model_dump_json(sort_keys=True)),
+        run_id=_id("hypothesis-run", *(sorted(g.gap_id for g in gaps)), json.dumps(cfg.model_dump(mode="json"), sort_keys=True)),
         input_gap_ids=sorted(g.gap_id for g in gaps), generated_count=len(generated), reflected_count=len(generated),
         selected_count=len(selected), pareto_count=len(frontier), candidates=generated,
         pareto_frontier_ids=[x.hypothesis.hypothesis_id for x in frontier],
