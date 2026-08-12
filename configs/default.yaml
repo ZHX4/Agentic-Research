@@ -1,6 +1,6 @@
 project:
   name: Agentic-Research
-  version: 0.7.0
+  version: 0.8.0
 
 research:
   domain: "AI/ML research"
@@ -22,6 +22,9 @@ safety:
   phase4_candidate_only: true
   phase5_no_global_novelty_claim: true
   phase6_no_experimental_validation_claim: true
+  phase7_network_disabled_by_default: true
+  phase7_code_hash_required: true
+  phase7_dataset_hash_required: true
 
 providers:
   llm: mock
@@ -87,6 +90,18 @@ phase6:
   min_gap_status: survived
   allow_uncertain_gaps: false
   clustering_threshold: 0.70
+
+phase7:
+  default_image: "python:3.11-slim"
+  network_enabled: false
+  allow_gpu: false
+  read_only_root: true
+  memory_mb: 4096
+  cpu_count: 2.0
+  timeout_seconds: 3600
+  pids_limit: 256
+  default_seeds: [1, 2, 3]
+  output_dir: "artifacts/runs"
 
 storage:
   mode: sqlite-world-model
