@@ -34,15 +34,18 @@
 - [x] citation graph ingestion
 - [x] deterministic end-to-end paper analysis
 
-## Phase 3 — Retrieval and world model
+## Phase 3 — Retrieval and world model (implemented)
 
-- lexical retrieval
-- embedding retrieval
-- reranking
-- citation traversal
-- metadata filters
-- hybrid retrieval
-- scientific knowledge graph
+- [x] lexical retrieval
+- [x] embedding retrieval
+- [x] reranking
+- [x] citation traversal
+- [x] metadata filters
+- [x] hybrid retrieval
+- [x] scientific knowledge graph
+- [x] model-isolated vector storage
+- [x] persistent SQLite world model
+- [x] retrieval CLI
 
 ## Phase 4 — Gap discovery
 
