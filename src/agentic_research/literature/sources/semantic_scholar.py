@@ -26,27 +26,12 @@ class SemanticScholarAdapter(LiteratureRetriever):
         client: HttpClient | None = None,
         min_interval_seconds: float = 1.0,
     ) -> None:
-        headers = {"x-api-key": api_key} if api_key else {}
         self._client = client or HttpClient(
             user_agent="Agentic-Research/0.2 (+https://github.com/ZHX4/Agentic-Research)",
             rate_limiter=RateLimiter(min_interval_seconds),
+            headers={"x-api-key": api_key} if api_key else None,
         )
-        # A custom HttpClient is already fully constructed, so API-key headers
-        # are intentionally handled by the default client only in this adapter.
-        # When an injected client is used for tests, its transport can assert the
-        # request independently.
-        if headers and client is None:
-            # Recreate the client with the authenticated header through a tiny
-            # dedicated transport wrapper is unnecessarily complex; use the
-            # public query parameter only when available is not supported.
-            self._client.close()
-            self._client = HttpClientWithHeaders(
-                headers=headers,
-                rate_limiter=RateLimiter(min_interval_seconds),
-            )
-            self._owns_client = True
-        else:
-            self._owns_client = client is None
+        self._owns_client = client is None
 
     def close(self) -> None:
         if self._owns_client:
@@ -55,23 +40,20 @@ class SemanticScholarAdapter(LiteratureRetriever):
     def search(self, query: SearchQuery) -> list[SearchHit]:
         results: list[SearchHit] = []
         offset = 0
-        page_size = min(100, query.limit)
-
         while len(results) < query.limit:
+            page_size = min(100, query.limit - len(results))
             params: dict[str, object] = {
                 "query": query.text,
-                "limit": min(page_size, query.limit - len(results)),
+                "limit": page_size,
                 "offset": offset,
                 "fields": _FIELDS,
             }
-            if query.year_from is not None or query.year_to is not None:
-                low = query.year_from or 1900
-                high = query.year_to or 2200
-                if query.temporal_cutoff is not None:
-                    high = min(high, query.temporal_cutoff)
+            low = query.year_from or 1900
+            high = query.year_to or query.temporal_cutoff or 2200
+            if query.temporal_cutoff is not None:
+                high = min(high, query.temporal_cutoff)
+            if query.year_from is not None or query.year_to is not None or query.temporal_cutoff is not None:
                 params["year"] = f"{low}-{high}"
-            elif query.temporal_cutoff is not None:
-                params["year"] = f"1900-{query.temporal_cutoff}"
 
             payload = self._client.get(_BASE_URL, params=params).json()
             data = payload.get("data", [])
@@ -79,7 +61,7 @@ class SemanticScholarAdapter(LiteratureRetriever):
                 break
             for raw in data:
                 paper = _paper_from_semantic_scholar(raw)
-                if paper.year is not None and query.temporal_cutoff and paper.year > query.temporal_cutoff:
+                if paper.year is not None and query.temporal_cutoff is not None and paper.year > query.temporal_cutoff:
                     continue
                 results.append(
                     SearchHit(
@@ -99,9 +81,9 @@ class SemanticScholarAdapter(LiteratureRetriever):
 
 def _paper_from_semantic_scholar(raw: dict[str, Any]) -> Paper:
     external_ids = raw.get("externalIds") or {}
+    paper_id = str(raw.get("paperId") or "")
     doi = normalize_doi(external_ids.get("DOI"))
     arxiv_id = normalize_arxiv_id(external_ids.get("ArXiv"))
-    paper_id = str(raw.get("paperId") or "")
     authors = [str(a.get("name", "")).strip() for a in raw.get("authors", []) if a.get("name")]
     oa_pdf = raw.get("openAccessPdf") or {}
     metadata = {
@@ -123,13 +105,3 @@ def _paper_from_semantic_scholar(raw: dict[str, Any]) -> Paper:
         authors=authors,
         metadata=metadata,
     )
-
-
-class HttpClientWithHeaders(HttpClient):
-    """Authenticated HttpClient used only by Semantic Scholar."""
-
-    def __init__(self, *, headers: dict[str, str], rate_limiter: RateLimiter) -> None:
-        import httpx
-
-        super().__init__(user_agent="Agentic-Research/0.2 (+https://github.com/ZHX4/Agentic-Research)", rate_limiter=rate_limiter)
-        self._client.headers.update(headers)
