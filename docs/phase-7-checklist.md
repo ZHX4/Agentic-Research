@@ -18,6 +18,7 @@
 - [x] stdout/stderr hashing
 - [x] Artifact hashing and collection
 - [x] Structured metrics ingestion
+- [x] Missing/malformed metrics force seed execution failure
 - [x] Explicit falsification evaluation
 - [x] Inconclusive result when no operational threshold is specified
 - [x] Reproducibility flag based on multi-seed consistency
