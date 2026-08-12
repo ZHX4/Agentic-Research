@@ -17,6 +17,14 @@ from .paper_intelligence import (
 )
 from .phase3 import RetrievalFilters, RetrievalHit, RetrievalResponse, TraversalResult, WorldEdge, WorldNode
 from .phase4 import GapDiscoveryConfig, GapDiscoveryResult, GapSignal
+from .phase5 import (
+    Counterevidence,
+    GapVerificationResult,
+    NoveltyVerificationConfig,
+    NoveltyVerificationReport,
+    PriorWorkMatch,
+    SearchProbe,
+)
 
 __all__ = [
     "Paper",
@@ -45,4 +53,10 @@ __all__ = [
     "GapDiscoveryConfig",
     "GapDiscoveryResult",
     "GapSignal",
+    "SearchProbe",
+    "PriorWorkMatch",
+    "Counterevidence",
+    "NoveltyVerificationConfig",
+    "GapVerificationResult",
+    "NoveltyVerificationReport",
 ]
