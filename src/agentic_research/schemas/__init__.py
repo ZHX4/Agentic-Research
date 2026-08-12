@@ -15,6 +15,7 @@ from .paper_intelligence import (
     TableRecord,
     TextChunk,
 )
+from .phase3 import RetrievalFilters, RetrievalHit, RetrievalResponse, TraversalResult, WorldEdge, WorldNode
 
 __all__ = [
     "Paper",
@@ -34,4 +35,10 @@ __all__ = [
     "ClaimEvidenceLink",
     "ExtractedClaim",
     "StructuredExtraction",
+    "RetrievalFilters",
+    "RetrievalHit",
+    "RetrievalResponse",
+    "WorldNode",
+    "WorldEdge",
+    "TraversalResult",
 ]
