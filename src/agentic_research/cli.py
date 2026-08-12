@@ -66,10 +66,7 @@ def demo() -> None:
 
 
 @app.command()
-def gaps(
-    input: Path = typer.Option(..., exists=True, readable=True, help="Input JSONL paper corpus."),
-    output: Path = typer.Option(..., help="Output JSON file for candidate gaps."),
-) -> None:
+def gaps(input: Path = typer.Option(..., exists=True, readable=True, help="Input JSONL paper corpus."), output: Path = typer.Option(..., help="Output JSON file for candidate gaps.")) -> None:
     """Detect candidate missing method/dataset combinations from a paper corpus."""
     papers = list(load_papers(input))
     result = detect_missing_combinations(papers)
@@ -86,22 +83,12 @@ def validate(input: Path = typer.Option(..., exists=True, readable=True)) -> Non
 
 
 @app.command(name="search")
-def literature_search(
-    text: str = typer.Argument(..., help="Scientific search query."),
-    limit: int = typer.Option(20, min=1, max=1000, help="Maximum unique papers to return."),
-    year_from: int | None = typer.Option(None, min=1900, max=2200),
-    year_to: int | None = typer.Option(None, min=1900, max=2200),
-    temporal_cutoff: int | None = typer.Option(None, min=1900, max=2200),
-    output: Path | None = typer.Option(None, help="Optional JSON output path."),
-) -> None:
+def literature_search(text: str = typer.Argument(..., help="Scientific search query."), limit: int = typer.Option(20, min=1, max=1000, help="Maximum unique papers to return."), year_from: int | None = typer.Option(None, min=1900, max=2200), year_to: int | None = typer.Option(None, min=1900, max=2200), temporal_cutoff: int | None = typer.Option(None, min=1900, max=2200), output: Path | None = typer.Option(None, help="Optional JSON output path.")) -> None:
     """Search configured scholarly sources and deduplicate the results."""
     query = SearchQuery(text=text, limit=limit, year_from=year_from, year_to=year_to, temporal_cutoff=temporal_cutoff)
     with build_literature_service(LiteratureSettings()) as service:
         hits = service.search(query)
-    payload = [
-        {"source": hit.source, "score": hit.score, "retrieval_reason": hit.retrieval_reason, "paper": hit.paper.model_dump(mode="json")}
-        for hit in hits
-    ]
+    payload = [{"source": hit.source, "score": hit.score, "retrieval_reason": hit.retrieval_reason, "paper": hit.paper.model_dump(mode="json")} for hit in hits]
     if output:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -111,11 +98,7 @@ def literature_search(
 
 
 @app.command()
-def acquire(
-    input: Path = typer.Option(..., exists=True, readable=True, help="Input JSONL paper corpus."),
-    output: Path = typer.Option(..., help="Output JSONL acquisition manifest."),
-    output_dir: Path = typer.Option(Path("artifacts/fulltext"), help="Directory for downloaded files."),
-) -> None:
+def acquire(input: Path = typer.Option(..., exists=True, readable=True, help="Input JSONL paper corpus."), output: Path = typer.Option(..., help="Output JSONL acquisition manifest."), output_dir: Path = typer.Option(Path("artifacts/fulltext"), help="Directory for downloaded files.")) -> None:
     """Acquire available open full text and write acquisition manifests."""
     settings = LiteratureSettings()
     client = HttpClient(user_agent=settings.user_agent, timeout_seconds=settings.request_timeout_seconds, rate_limiter=RateLimiter(settings.arxiv_min_interval_seconds))
@@ -136,10 +119,7 @@ def acquire(
 
 
 @app.command()
-def parse(
-    manifest: Path = typer.Option(..., exists=True, readable=True, help="JSONL full-text manifest."),
-    output: Path = typer.Option(..., help="Output JSONL parsed documents."),
-) -> None:
+def parse(manifest: Path = typer.Option(..., exists=True, readable=True, help="JSONL full-text manifest."), output: Path = typer.Option(..., help="Output JSONL parsed documents.")) -> None:
     """Parse successfully acquired PDF/HTML documents from a manifest."""
     manifests = JsonlStore(manifest).read(FullTextManifest)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -154,12 +134,7 @@ def parse(
 
 
 @app.command()
-def analyze(
-    paper: Path = typer.Option(..., exists=True, readable=True, help="JSON file containing one canonical Paper."),
-    pdf: Path = typer.Option(..., exists=True, readable=True, help="PDF file to analyze."),
-    output: Path = typer.Option(..., help="Output JSON containing Paper and StructuredExtraction."),
-    calibration_model: Path | None = typer.Option(None, exists=True, readable=True, help="Optional isotonic calibration model JSON."),
-) -> None:
+def analyze(paper: Path = typer.Option(..., exists=True, readable=True, help="JSON file containing one canonical Paper."), pdf: Path = typer.Option(..., exists=True, readable=True, help="PDF file to analyze."), output: Path = typer.Option(..., help="Output JSON containing Paper and StructuredExtraction."), calibration_model: Path | None = typer.Option(None, exists=True, readable=True, help="Optional isotonic calibration model JSON.")) -> None:
     """Run the deterministic Phase 2 paper-intelligence pipeline on one PDF."""
     paper_obj = Paper.model_validate_json(paper.read_text(encoding="utf-8"))
     calibrator = None
@@ -172,12 +147,7 @@ def analyze(
 
 
 @app.command()
-def index(
-    input: Path = typer.Option(..., exists=True, readable=True, help="JSON produced by `analyze` containing paper and extraction."),
-    database: Path = typer.Option(Path("artifacts/world-model.sqlite"), help="SQLite world-model database."),
-    embedding: Literal["none", "hash", "sentence-transformers"] = typer.Option("hash", help="Embedding backend."),
-    embedding_model: str = typer.Option("sentence-transformers/all-MiniLM-L6-v2", help="Sentence-transformers embedding model."),
-) -> None:
+def index(input: Path = typer.Option(..., exists=True, readable=True, help="JSON produced by `analyze` containing paper and extraction."), database: Path = typer.Option(Path("artifacts/world-model.sqlite"), help="SQLite world-model database."), embedding: Literal["none", "hash", "sentence-transformers"] = typer.Option("hash", help="Embedding backend."), embedding_model: str = typer.Option("sentence-transformers/all-MiniLM-L6-v2", help="Sentence-transformers embedding model.")) -> None:
     """Index a Phase 2 extraction into the persistent Phase 3 world model."""
     payload = json.loads(input.read_text(encoding="utf-8"))
     paper_obj = Paper.model_validate(payload["paper"])
@@ -191,22 +161,7 @@ def index(
 
 
 @app.command()
-def retrieve(
-    text: str = typer.Argument(..., help="Local scientific retrieval query."),
-    database: Path = typer.Option(Path("artifacts/world-model.sqlite"), exists=True, readable=True),
-    limit: int = typer.Option(10, min=1, max=1000),
-    mode: Literal["lexical", "dense", "hybrid"] = typer.Option("hybrid"),
-    embedding: Literal["none", "hash", "sentence-transformers"] = typer.Option("hash"),
-    embedding_model: str = typer.Option("sentence-transformers/all-MiniLM-L6-v2"),
-    reranker: Literal["none", "lexical", "cross-encoder"] = typer.Option("lexical"),
-    reranker_model: str = typer.Option("cross-encoder/ms-marco-MiniLM-L-6-v2"),
-    year_from: int | None = typer.Option(None, min=1900, max=2200),
-    year_to: int | None = typer.Option(None, min=1900, max=2200),
-    temporal_cutoff: int | None = typer.Option(None, min=1900, max=2200),
-    paper_id: list[str] = typer.Option([], help="Restrict to these paper IDs; repeat for multiple IDs."),
-    source: list[str] = typer.Option([], help="Restrict to these source labels; repeat for multiple labels."),
-    output: Path | None = typer.Option(None, help="Optional JSON output."),
-) -> None:
+def retrieve(text: str = typer.Argument(..., help="Local scientific retrieval query."), database: Path = typer.Option(Path("artifacts/world-model.sqlite"), exists=True, readable=True), limit: int = typer.Option(10, min=1, max=1000), mode: Literal["lexical", "dense", "hybrid"] = typer.Option("hybrid"), embedding: Literal["none", "hash", "sentence-transformers"] = typer.Option("hash"), embedding_model: str = typer.Option("sentence-transformers/all-MiniLM-L6-v2"), reranker: Literal["none", "lexical", "cross-encoder"] = typer.Option("lexical"), reranker_model: str = typer.Option("cross-encoder/ms-marco-MiniLM-L-6-v2"), year_from: int | None = typer.Option(None, min=1900, max=2200), year_to: int | None = typer.Option(None, min=1900, max=2200), temporal_cutoff: int | None = typer.Option(None, min=1900, max=2200), paper_id: list[str] = typer.Option([], help="Restrict to these paper IDs; repeat for multiple IDs."), source: list[str] = typer.Option([], help="Restrict to these source labels; repeat for multiple labels."), output: Path | None = typer.Option(None, help="Optional JSON output.")) -> None:
     """Run Phase 3 lexical, dense, or hybrid retrieval over the world model."""
     filters = RetrievalFilters(year_from=year_from, year_to=year_to, temporal_cutoff=temporal_cutoff, paper_ids=paper_id, sources=source)
     embedder = _build_embedder(embedding, embedding_model)
@@ -226,24 +181,15 @@ def retrieve(
 
 
 @app.command()
-def traverse(
-    node_id: str = typer.Argument(..., help="Starting world-model node ID."),
-    database: Path = typer.Option(Path("artifacts/world-model.sqlite"), exists=True, readable=True),
-    depth: int = typer.Option(1, min=0, max=20),
-    edge_type: list[str] = typer.Option([], help="Restrict traversal to these edge types; repeat for multiple types."),
-) -> None:
-    """Traverse the persistent scientific knowledge graph."""
+def traverse(node_id: str = typer.Argument(..., help="Starting world-model node ID."), database: Path = typer.Option(Path("artifacts/world-model.sqlite"), exists=True, readable=True), depth: int = typer.Option(1, min=0, max=20), direction: Literal["out", "in", "both"] = typer.Option("both"), edge_type: list[str] = typer.Option([], help="Restrict traversal to these edge types; repeat for multiple types.")) -> None:
+    """Traverse the persistent scientific knowledge graph directionally."""
     with ScientificWorldModel(database) as world:
-        result = world.traverse(node_id, depth=depth, edge_types=set(edge_type) if edge_type else None)
+        result = world.traverse(node_id, depth=depth, edge_types=set(edge_type) if edge_type else None, direction=direction)
     print(json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False))
 
 
 @app.command()
-def calibrate(
-    input: Path = typer.Option(..., exists=True, readable=True, help="JSONL with raw_confidence and correct fields."),
-    output: Path = typer.Option(..., help="Output calibration report JSON."),
-    bins: int = typer.Option(10, min=1, max=100),
-) -> None:
+def calibrate(input: Path = typer.Option(..., exists=True, readable=True, help="JSONL with raw_confidence and correct fields."), output: Path = typer.Option(..., help="Output calibration report JSON."), bins: int = typer.Option(10, min=1, max=100)) -> None:
     """Measure extraction confidence calibration on labeled examples."""
     examples = [CalibrationExample.model_validate(json.loads(line)) for line in input.read_text(encoding="utf-8").splitlines() if line.strip()]
     report = calibration_report(examples, bins=bins)
@@ -253,10 +199,7 @@ def calibrate(
 
 
 @app.command(name="fit-calibrator")
-def fit_calibrator(
-    input: Path = typer.Option(..., exists=True, readable=True, help="JSONL with raw_confidence and correct fields."),
-    output: Path = typer.Option(..., help="Output isotonic calibration model JSON."),
-) -> None:
+def fit_calibrator(input: Path = typer.Option(..., exists=True, readable=True, help="JSONL with raw_confidence and correct fields."), output: Path = typer.Option(..., help="Output isotonic calibration model JSON.")) -> None:
     """Fit and persist an isotonic calibrator from labeled extraction examples."""
     examples = [CalibrationExample.model_validate(json.loads(line)) for line in input.read_text(encoding="utf-8").splitlines() if line.strip()]
     model = IsotonicCalibrator.fit(examples).to_model()
