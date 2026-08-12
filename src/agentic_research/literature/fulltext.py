@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-import fitz
+import fitz  # type: ignore[import-untyped]
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
@@ -115,8 +115,8 @@ def _candidate_urls(paper: Paper) -> list[tuple[str, str]]:
         values.append(("open_access_pdf", pdf))
     if paper.arxiv_id:
         values.append(("arxiv_pdf", f"https://arxiv.org/pdf/{paper.arxiv_id}.pdf"))
-    if isinstance(paper.url, str) and paper.url:
-        values.append(("landing_page", paper.url))
+    if paper.url is not None:
+        values.append(("landing_page", str(paper.url)))
     return list(dict.fromkeys(values))
 
 
