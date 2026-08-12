@@ -85,6 +85,7 @@ def chunk_blocks(
                     if piece:
                         synthetic = TextBlock(
                             block_id=f"{block.block_id}:{start}",
+                            order=block.order,
                             page=block.page,
                             bbox=block.bbox,
                             text=piece,
@@ -99,6 +100,7 @@ def chunk_blocks(
                 continue
             synthetic = TextBlock(
                 block_id=block.block_id,
+                order=block.order,
                 page=block.page,
                 bbox=block.bbox,
                 text=sentence,
