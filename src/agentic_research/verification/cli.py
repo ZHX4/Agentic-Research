@@ -47,10 +47,11 @@ def verify_gaps(
         allow_status_transition=not no_status_transition,
     )
 
-    settings = LiteratureSettings()
-    service = build_literature_service(settings) if config.include_external else None
     if config.include_local and database is None:
         raise typer.BadParameter("--database is required unless --no-local is supplied")
+
+    settings = LiteratureSettings()
+    service = build_literature_service(settings) if config.include_external else None
     world = ScientificWorldModel(database) if config.include_local and database is not None else None
 
     try:
