@@ -16,6 +16,7 @@ from agentic_research.schemas.paper_intelligence import BoundingBox, FigureRecor
 @dataclass(frozen=True)
 class TextBlock:
     block_id: str
+    order: int
     page: int
     bbox: BoundingBox
     text: str
@@ -59,6 +60,7 @@ def iter_text_blocks(path: Path) -> list[TextBlock]:
                 blocks.append(
                     TextBlock(
                         block_id=f"b-{digest}",
+                        order=len(blocks),
                         page=page_index + 1,
                         bbox=_bbox(tuple(raw.get("bbox", (0, 0, 0, 0)))),
                         text=text,
@@ -70,7 +72,7 @@ def iter_text_blocks(path: Path) -> list[TextBlock]:
 
 
 def extract_tables(path: Path, paper_id: str) -> list[TableRecord]:
-    """Extract native PDF tables using PyMuPDF's current table detector."""
+    """Extract native PDF tables using PyMuPDF's table detector."""
     tables: list[TableRecord] = []
     with fitz.open(path) as document:
         for page_index, page in enumerate(document):
@@ -85,7 +87,6 @@ def extract_tables(path: Path, paper_id: str) -> list[TableRecord]:
                 digest = hashlib.sha1(
                     f"{paper_id}|{page_index + 1}|{index}|{rows}".encode("utf-8")
                 ).hexdigest()[:16]
-                markdown = _table_to_markdown(rows)
                 tables.append(
                     TableRecord(
                         table_id=f"tbl-{digest}",
@@ -93,7 +94,7 @@ def extract_tables(path: Path, paper_id: str) -> list[TableRecord]:
                         page=page_index + 1,
                         bbox=_bbox(tuple(table.bbox)),
                         rows=rows,
-                        markdown=markdown,
+                        markdown=_table_to_markdown(rows),
                         extraction_confidence=_table_confidence(rows),
                     )
                 )
@@ -153,6 +154,7 @@ def iter_page_blocks(page: fitz.Page) -> list[TextBlock]:
         blocks.append(
             TextBlock(
                 block_id=f"p{page.number + 1}-b{block_index}",
+                order=block_index,
                 page=page.number + 1,
                 bbox=_bbox(tuple(raw.get("bbox", (0, 0, 0, 0)))),
                 text=text,
@@ -173,7 +175,7 @@ def _nearest_caption(blocks: list[TextBlock], image_bbox: tuple[float, float, fl
         distance = min(abs(block.bbox.y0 - y1), abs(y0 - block.bbox.y1)) + abs(block.bbox.x0 - x0) * 0.05
         if distance < 120:
             candidates.append((distance, text))
-    return min(candidates, default=(0, None), key=lambda item: item[0])[1]
+    return min(candidates, key=lambda item: item[0])[1] if candidates else None
 
 
 def _table_to_markdown(rows: list[list[str]]) -> str:
