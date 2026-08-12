@@ -17,6 +17,12 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
     def _local_exact_matches(self, candidate: GapCandidate, paper_ids: set[str]) -> set[str]:
         if self.world is None or not paper_ids:
             return set()
+        candidate_method = _world_key(candidate.method or "")
+        candidate_dataset = _world_key(candidate.dataset or "")
+        candidate_task = _world_key(candidate.task or "")
+        if not (candidate_method or candidate_dataset or candidate_task):
+            return set()
+
         methods: dict[str, set[str]] = {paper_id: set() for paper_id in paper_ids}
         datasets: dict[str, set[str]] = {paper_id: set() for paper_id in paper_ids}
         tasks: dict[str, set[str]] = {paper_id: set() for paper_id in paper_ids}
@@ -38,9 +44,7 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
             paper_id = row["source_id"][len("paper:"):] if row["source_id"].startswith("paper:") else row["source_id"]
             if paper_id in paper_ids and row["edge_type"] in field_map:
                 field_map[row["edge_type"]][paper_id].add(_world_key(row["label"]))
-        candidate_method = _world_key(candidate.method or "")
-        candidate_dataset = _world_key(candidate.dataset or "")
-        candidate_task = _world_key(candidate.task or "")
+
         matches: set[str] = set()
         for paper_id in ordered_ids:
             if candidate_method and candidate_method not in methods[paper_id]:
@@ -49,8 +53,7 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
                 continue
             if candidate_task and candidate_task not in tasks[paper_id]:
                 continue
-            if candidate_method or candidate_dataset or candidate_task:
-                matches.add(paper_id)
+            matches.add(paper_id)
         return matches
 
     def verify(self, candidate: GapCandidate, config: NoveltyVerificationConfig | None = None) -> GapVerificationResult:
@@ -58,7 +61,10 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
         result = super().verify(candidate, cfg)
         if result.verdict == "supported" and not result.prior_work:
             inconclusive = result.verified_candidate.model_copy(
-                update={"status": GapStatus.UNCERTAIN if cfg.allow_status_transition else GapStatus.CANDIDATE, "confidence": min(result.confidence, 0.25)}
+                update={
+                    "status": GapStatus.UNCERTAIN if cfg.allow_status_transition else GapStatus.CANDIDATE,
+                    "confidence": min(result.confidence, 0.25),
+                }
             )
             return result.model_copy(
                 update={
