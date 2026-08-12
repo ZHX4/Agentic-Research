@@ -64,7 +64,6 @@ CREATE INDEX IF NOT EXISTS idx_nodes_paper ON nodes(paper_id);
 CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(source_id);
 CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(target_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_year ON chunks(year);
-CREATE INDEX IF NOT EXISTS idx_chunks_vector_model ON chunks(vector_model);
 """
 
 
@@ -82,6 +81,8 @@ class ScientificWorldModel:
             if "vector_model" not in columns:
                 self.connection.execute("ALTER TABLE chunks ADD COLUMN vector_model TEXT")
                 self.connection.commit()
+            self.connection.execute("CREATE INDEX IF NOT EXISTS idx_chunks_vector_model ON chunks(vector_model)")
+            self.connection.commit()
         except sqlite3.DatabaseError as exc:
             self.connection.close()
             raise RuntimeError("SQLite FTS5 is required for the Phase 3 world model") from exc
@@ -121,21 +122,7 @@ class ScientificWorldModel:
             (edge.edge_id, edge.source_id, edge.target_id, edge.edge_type, json.dumps(edge.payload, ensure_ascii=False)),
         )
 
-    def upsert_chunk(
-        self,
-        *,
-        chunk_id: str,
-        paper_id: str,
-        title: str,
-        text: str,
-        section: str | None,
-        page_start: int | None,
-        page_end: int | None,
-        year: int | None,
-        source: str | None,
-        vector: list[float] | None,
-        vector_model: str | None,
-    ) -> None:
+    def upsert_chunk(self, *, chunk_id: str, paper_id: str, title: str, text: str, section: str | None, page_start: int | None, page_end: int | None, year: int | None, source: str | None, vector: list[float] | None, vector_model: str | None) -> None:
         vector_blob: bytes | None = None
         dimension: int | None = None
         if vector is not None:
@@ -143,7 +130,7 @@ class ScientificWorldModel:
             dimension = len(vector)
         self.connection.execute(
             """INSERT INTO chunks(chunk_id,paper_id,title,text,section,page_start,page_end,year,source,vector,vector_dim,vector_model)
-               VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(chunk_id) DO UPDATE SET paper_id=excluded.paper_id,title=excluded.title,text=excluded.text,
                section=excluded.section,page_start=excluded.page_start,page_end=excluded.page_end,year=excluded.year,
                source=excluded.source,vector=COALESCE(excluded.vector,chunks.vector),
@@ -152,10 +139,7 @@ class ScientificWorldModel:
             (chunk_id, paper_id, title, text, section, page_start, page_end, year, source, vector_blob, dimension, vector_model),
         )
         self.connection.execute("DELETE FROM chunks_fts WHERE chunk_id=?", (chunk_id,))
-        self.connection.execute(
-            "INSERT INTO chunks_fts(chunk_id,paper_id,text,section,title) VALUES(?,?,?,?,?)",
-            (chunk_id, paper_id, text, section or "", title),
-        )
+        self.connection.execute("INSERT INTO chunks_fts(chunk_id,paper_id,text,section,title) VALUES(?,?,?,?,?)", (chunk_id, paper_id, text, section or "", title))
 
     def commit(self) -> None:
         self.connection.commit()
@@ -188,8 +172,7 @@ class ScientificWorldModel:
             if direction in {"in", "both"}:
                 where_parts.append(f"target_id IN ({placeholders})")
                 params.extend(frontier)
-            query = f"SELECT edge_id,source_id,target_id,edge_type FROM edges WHERE ({' OR '.join(where_parts)})"
-            rows = self.connection.execute(query, params).fetchall()
+            rows = self.connection.execute(f"SELECT edge_id,source_id,target_id,edge_type FROM edges WHERE ({' OR '.join(where_parts)})", params).fetchall()
             next_frontier: set[str] = set()
             for row in rows:
                 if edge_types and row["edge_type"] not in edge_types:
@@ -215,7 +198,7 @@ class ScientificWorldModel:
         tokens = re.findall(r"[A-Za-z0-9][A-Za-z0-9_+-]{1,63}", query.lower())
         if not tokens:
             return []
-        fts_query = " OR ".join(f'"{token.replace(chr(34), "")}"' for token in tokens)
+        fts_query = " OR ".join(f'"{token}"' for token in tokens)
         conditions = ["1=1"]
         params: list[object] = [fts_query]
         if filters:
@@ -266,13 +249,14 @@ class ScientificWorldModel:
             if chunk.section_id:
                 self.upsert_edge(WorldEdge(edge_id=f"contains:{chunk.section_id}:{chunk.chunk_id}", source_id=chunk.section_id, target_id=chunk.chunk_id, edge_type="contains"))
         evidence_by_id = {item.evidence_id: item for item in extraction.evidence}
+        claim_ids = {item.claim_id for item in extraction.claims}
         for claim in extraction.claims:
             self.upsert_node(WorldNode(node_id=claim.claim_id, node_type="claim", paper_id=paper.paper_id, label=claim.text, payload={"chunk_id": claim.chunk_id, "raw_confidence": claim.raw_confidence, "calibrated_confidence": claim.calibrated_confidence}))
         for evidence in extraction.evidence:
             self.upsert_node(WorldNode(node_id=evidence.evidence_id, node_type="evidence", paper_id=paper.paper_id, label=evidence.claim, payload={"section": evidence.section, "page": evidence.page, "quote": evidence.quote, "source_locator": evidence.source_locator, "confidence": evidence.confidence}))
         for link in extraction.claim_links:
-            if link.evidence_id not in evidence_by_id:
-                raise ValueError(f"Unknown evidence_id in claim link: {link.evidence_id}")
+            if link.claim_id not in claim_ids or link.evidence_id not in evidence_by_id:
+                raise ValueError("Claim-evidence link references an unknown object")
             self.upsert_edge(WorldEdge(edge_id=link.link_id, source_id=link.claim_id, target_id=link.evidence_id, edge_type=link.relation))
         for ref in extraction.references:
             self.upsert_node(WorldNode(node_id=ref.reference_id, node_type="reference", paper_id=paper.paper_id, label=ref.title or ref.raw_text[:160], payload=ref.model_dump(mode="json")))
@@ -285,15 +269,13 @@ class ScientificWorldModel:
                 target_id = edge.cited_reference_id
             self.upsert_edge(WorldEdge(edge_id=edge.edge_id, source_id=paper_node_id, target_id=target_id, edge_type="cites", payload={"confidence": edge.confidence, "marker": edge.marker, "context_chunk_id": edge.citation_context_chunk_id}))
         for author in paper.authors:
-            normalized = " ".join(author.lower().split())
-            digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:20]
+            normalized = " ".join(author.lower().split()); digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:20]
             node_id = f"author:{digest}"
             self.upsert_node(WorldNode(node_id=node_id, node_type="author", paper_id=None, label=author, payload={"normalized": normalized}))
             self.upsert_edge(WorldEdge(edge_id=f"authored_by:{paper.paper_id}:{node_id}", source_id=paper_node_id, target_id=node_id, edge_type="authored_by"))
         for field, node_type, edge_type in (("methods", "method", "has_method"), ("datasets", "dataset", "has_dataset"), ("metrics", "metric", "has_metric"), ("baselines", "baseline", "has_baseline"), ("tasks", "task", "has_task")):
             for value in getattr(paper, field):
-                normalized = " ".join(value.lower().split())
-                digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:20]
+                normalized = " ".join(value.lower().split()); digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:20]
                 node_id = f"{node_type}:{digest}"
                 self.upsert_node(WorldNode(node_id=node_id, node_type=node_type, paper_id=None, label=value, payload={"normalized": normalized}))
                 self.upsert_edge(WorldEdge(edge_id=f"{edge_type}:{paper.paper_id}:{node_id}", source_id=paper_node_id, target_id=node_id, edge_type=edge_type))
