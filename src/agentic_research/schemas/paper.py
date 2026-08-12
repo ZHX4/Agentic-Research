@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
 def utcnow() -> datetime:
+    """Return a timezone-aware UTC timestamp."""
     return datetime.now(timezone.utc)
 
 
@@ -15,9 +16,9 @@ class Evidence(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    evidence_id: str
-    paper_id: str
-    claim: str
+    evidence_id: str = Field(min_length=1)
+    paper_id: str = Field(min_length=1)
+    claim: str = Field(min_length=1)
     section: str | None = None
     page: int | None = Field(default=None, ge=1)
     quote: str | None = None
@@ -30,8 +31,8 @@ class Paper(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    paper_id: str
-    title: str
+    paper_id: str = Field(min_length=1)
+    title: str = Field(min_length=1)
     abstract: str | None = None
     year: int | None = Field(default=None, ge=1900, le=2200)
     doi: str | None = None
@@ -55,10 +56,10 @@ class ExperimentResult(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    experiment_id: str
-    hypothesis_id: str
-    code_revision: str
-    dataset_manifest: str
+    experiment_id: str = Field(min_length=1)
+    hypothesis_id: str = Field(min_length=1)
+    code_revision: str = Field(min_length=1)
+    dataset_manifest: str = Field(min_length=1)
     seed: int = Field(ge=0)
     metrics: dict[str, float]
     artifacts: list[str] = Field(default_factory=list)
