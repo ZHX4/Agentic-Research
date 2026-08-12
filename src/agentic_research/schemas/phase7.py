@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 ExecutionStatus = Literal["planned", "running", "succeeded", "failed", "timeout", "rejected", "cancelled"]
+MetricDirection = Literal["higher", "lower"]
 
 
 class DatasetManifest(BaseModel):
@@ -30,6 +31,7 @@ class FalsificationPlan(BaseModel):
     plan_id: str = Field(min_length=1)
     hypothesis_id: str = Field(min_length=1)
     primary_metric: str = Field(min_length=1)
+    metric_direction: MetricDirection = "higher"
     null_hypothesis: str = Field(min_length=1)
     rejection_criteria: list[str] = Field(min_length=1)
     required_ablations: list[str] = Field(default_factory=list)
