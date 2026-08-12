@@ -20,10 +20,7 @@ def _aggregate_metrics(seed_runs: list[SeedRun]) -> list[MetricRecord]:
     for run in seed_runs:
         for metric in run.metrics:
             grouped.setdefault((metric.name, metric.split), []).append(metric)
-    return [
-        MetricRecord(name=name, value=mean(item.value for item in values), seed=-1, split=split)
-        for (name, split), values in sorted(grouped.items())
-    ]
+    return [MetricRecord(name=name, value=mean(item.value for item in values), seed=-1, split=split) for (name, split), values in sorted(grouped.items())]
 
 
 def _parse_metrics(run: SeedRun, artifact_dir: Path) -> SeedRun:
@@ -32,33 +29,16 @@ def _parse_metrics(run: SeedRun, artifact_dir: Path) -> SeedRun:
         return run
     try:
         payload = json.loads(metrics_file.read_text(encoding="utf-8"))
-        records = [
-            MetricRecord(
-                name=str(item["name"]),
-                value=float(item["value"]),
-                seed=run.seed,
-                split=str(item.get("split", "test")),
-            )
-            for item in payload
-        ]
+        records = [MetricRecord(name=str(item["name"]), value=float(item["value"]), seed=run.seed, split=str(item.get("split", "test"))) for item in payload]
         return run.model_copy(update={"metrics": records})
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         return run.model_copy(update={"error": f"Invalid metrics.json: {exc}"})
 
 
-def run_experiment(
-    spec: ExperimentSpec,
-    *,
-    code_dir: Path,
-    output_dir: Path,
-    executor: DockerSandboxExecutor | None = None,
-) -> ExperimentResult:
+def run_experiment(spec: ExperimentSpec, *, code_dir: Path, output_dir: Path, executor: DockerSandboxExecutor | None = None) -> ExperimentResult:
     runner = executor or DockerSandboxExecutor()
     seed_runs = runner.execute(spec, code_dir=code_dir, output_dir=output_dir)
-    parsed = [
-        _parse_metrics(run, output_dir / f"seed-{run.seed}")
-        for run in seed_runs
-    ]
+    parsed = [_parse_metrics(run, output_dir / f"seed-{run.seed}") for run in seed_runs]
     status = "succeeded" if parsed and all(run.status == "succeeded" for run in parsed) and len(parsed) == len(spec.seeds) else "failed"
     if any(run.status == "timeout" for run in parsed):
         status = "timeout"
@@ -91,10 +71,14 @@ def evaluate_falsification(spec: ExperimentSpec, runs: list[SeedRun]) -> tuple[b
     values = [m.value for run in runs for m in run.metrics if m.name == primary and m.split == "test"]
     if not values:
         return None, f"Primary metric {primary!r} was not emitted by the experiment."
-    # Phase 7 does not infer causal/scientific truth; it only applies explicit rejection rules.
-    if spec.falsification.minimum_effect_size is not None and max(values) < spec.falsification.minimum_effect_size:
+    threshold = spec.falsification.minimum_effect_size
+    if threshold is None:
+        return None, "No operational minimum_effect_size was specified; remaining rejection criteria require domain-specific review."
+    if spec.falsification.metric_direction == "higher" and max(values) < threshold:
         return True, "Primary metric remained below the prespecified minimum effect size."
-    return False, "No configured falsification threshold was crossed. This is not evidence of truth."
+    if spec.falsification.metric_direction == "lower" and min(values) > threshold:
+        return True, "Primary metric remained above the prespecified maximum acceptable value."
+    return False, "The configured metric threshold was not crossed. This is not evidence that the hypothesis is true."
 
 
 def _is_reproducible(runs: list[SeedRun]) -> bool:
