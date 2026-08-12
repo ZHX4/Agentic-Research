@@ -231,7 +231,7 @@ def test_local_world_model_exact_combination_disproves_candidate(tmp_path: Path)
 
 
 def test_external_fulltext_can_disprove_metadata_only_prior_work(tmp_path: Path) -> None:
-    prior = paper("prior", "A differently titled study")
+    prior = paper("prior", "Method Alpha context only")
     acquirer = FakeFullTextAcquirer(
         tmp_path,
         {"prior": "We evaluate Method Alpha on Dataset Beta for Task Gamma in the experiments."},
@@ -258,7 +258,7 @@ def test_external_fulltext_can_disprove_metadata_only_prior_work(tmp_path: Path)
 
 
 def test_missing_fulltext_prevents_supported_verdict(tmp_path: Path) -> None:
-    prior = paper("prior", "Context only")
+    prior = paper("prior", "Method Alpha context only")
     acquirer = FakeFullTextAcquirer(tmp_path, {})
     verifier = NoveltyVerifier(
         literature_service=LiteratureService([FakeRetriever([prior])]),
