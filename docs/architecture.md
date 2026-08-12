@@ -1,20 +1,35 @@
 # Architecture
 
-## Current foundation
+## Implemented layers
 
-The MVP is intentionally deterministic. It defines domain contracts and one candidate-gap detector without requiring an LLM or external API.
+The repository is intentionally built as deterministic, provider-agnostic layers. Each phase adds capability without collapsing the scientific provenance model.
 
 ```text
-JSONL corpus
-    |
-    v
-Paper schema validation
-    |
-    v
-Candidate Gap Detector
-    |
-    v
-GapCandidate objects
+Phase 0
+  JSONL corpus
+      -> Paper schema validation
+      -> Candidate Gap Detector
+      -> Provenance contracts
+
+Phase 1
+  Scholarly source adapters
+      -> OpenAlex / Semantic Scholar / arXiv
+      -> Retry + rate limiting
+      -> Canonical identity + deduplication
+      -> Temporal cutoff
+      -> Full-text acquisition
+      -> PDF / HTML parsing
+
+Phase 2
+  Acquired PDF
+      -> Layout-aware blocks
+      -> Section hierarchy
+      -> Section-aware chunks
+      -> Tables / figures
+      -> References / citation edges
+      -> Structured candidate fields
+      -> Claims + Evidence
+      -> Confidence calibration
 ```
 
 ## Target architecture
@@ -23,21 +38,21 @@ GapCandidate objects
 ResearchGoal
   -> LiteraturePlanner
   -> SourceAdapters
-  -> HybridRetriever
-  -> PaperParser
-  -> ScientificExtractor
-  -> EvidenceStore
-  -> ScientificKnowledgeGraph
-  -> GapHunter
-  -> DevilAdvocate
-  -> NoveltyVerifier
-  -> HypothesisFactory
-  -> HypothesisTournament
-  -> ExperimentPlanner
-  -> SandboxedExecutor
-  -> Falsifier
-  -> IndependentReview
-  -> Provenance-aware Report
+  -> LiteratureService
+  -> PaperIntelligence
+  -> HybridRetriever (Phase 3)
+  -> ScientificWorldModel (Phase 3)
+  -> GapHunter (Phase 4)
+  -> DevilAdvocate (Phase 5)
+  -> NoveltyVerifier (Phase 5)
+  -> HypothesisFactory (Phase 6)
+  -> HypothesisTournament (Phase 6)
+  -> ExperimentPlanner (Phase 7)
+  -> SandboxedExecutor (Phase 7)
+  -> Falsifier (Phase 7)
+  -> Evaluation + TemporalBenchmark (Phase 8)
+  -> AutonomousDiscovery (Phase 9)
+  -> Provenance-aware Report / Papers (Phase 10)
 ```
 
 ## Design rules
@@ -45,7 +60,11 @@ ResearchGoal
 - Core schemas must not depend on a model vendor SDK.
 - Agents receive structured context and return structured results.
 - Retrieval providers are adapters behind stable interfaces.
-- Persistence can evolve from JSONL to PostgreSQL/pgvector without changing domain schemas.
+- Phase 2 extraction is deterministic and auditable; LLM extraction is intentionally deferred.
+- Extracted fields are candidate data, not truth.
+- Every extracted claim has an explicit Evidence object and source chunk.
+- Confidence is raw until calibrated against labeled examples.
+- Missing retrieval results never constitute proof of novelty.
 - Long-running state belongs in a durable run state store, not in chat history.
 - Experiment execution must be isolated from the host.
 - Every major decision receives a provenance link.
@@ -53,36 +72,15 @@ ResearchGoal
 ## Planned storage split
 
 - PostgreSQL: canonical metadata, runs, hypotheses, experiments, provenance.
-- pgvector: semantic retrieval where appropriate.
-- Graph store (later): scientific relationships and graph traversal.
+- pgvector: semantic retrieval where appropriate (Phase 3).
+- Graph store: scientific relationships and traversal (Phase 3+).
 - Object storage: PDFs, tables, figures, logs, experiment artifacts.
-- Redis (later): queues, short-lived locks, rate-limit state.
+- Redis: queues, short-lived locks, and distributed rate-limit state when needed.
 
-## Agent boundaries
+## Current Phase 2 limitations
 
-### Literature planner
-Converts a research goal into search facets and retrieval plans.
-
-### Paper intelligence
-Extracts structured scientific fields and evidence references.
-
-### Gap hunter
-Finds candidate missing combinations, contradictions, underexplored conditions, unresolved limitations, and cross-domain connections.
-
-### Devil's advocate
-Attempts to disprove a gap using alternative terminology and broader search.
-
-### Novelty verifier
-Compares the surviving candidate against nearest prior work and records the differences and remaining uncertainty.
-
-### Hypothesis factory
-Generates diverse hypotheses grounded in surviving gaps.
-
-### Tournament
-Ranks hypotheses using novelty, evidence, significance, feasibility, expected information gain, and diversity.
-
-### Experiment planner
-Creates a falsifiable experiment plan with datasets, baselines, ablations, metrics, seeds, compute limits, and rejection criteria.
-
-### Falsifier
-Actively searches for a cheap decisive experiment that could reject the hypothesis.
+- No OCR for scanned/image-only PDFs.
+- Citation resolution is deterministic and conservative; unusual citation styles may remain unresolved.
+- Table/figure extraction can miss complex layouts.
+- Candidate entity extraction is heuristic and must not be treated as scientific truth.
+- Confidence calibration requires labeled examples collected outside the extractor.
