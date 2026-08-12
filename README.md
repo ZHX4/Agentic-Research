@@ -2,7 +2,7 @@
 
 An evidence-grounded research-agent system for scientific literature intelligence, gap discovery, adversarial novelty verification, hypothesis generation, and eventually reproducible experimental validation.
 
-> **Status:** Phase 3 implemented. Phase 0, Phase 1, Phase 2, and Phase 3 are complete; Phase 4 has not started.
+> **Status:** Phase 4 implemented. Phase 0, Phase 1, Phase 2, Phase 3, and Phase 4 are complete; Phase 5 has not started.
 
 ## Research objective
 
@@ -49,7 +49,13 @@ Phase 3 Retrieval + World Model
   - directional citation traversal
       |
       v
-Gap Hunter (future)
+Phase 4 Gap Discovery
+  - missing combinations
+  - contradictions
+  - underexplored conditions
+  - recurring limitations
+  - cross-domain gaps
+  - graph negative-space signals
       |
       v
 Devil's Advocate (future)
@@ -67,60 +73,26 @@ Experiment Planner / Sandbox (future)
 Independent Review / Paper (future)
 ```
 
-## Phase 3: retrieval and scientific world model
+## Phase 4: deterministic gap discovery
 
-First create a Phase 2 paper-intelligence artifact as described in `docs/phase-2.md`, then index it:
-
-```bash
-python -m agentic_research.cli index \
-  --input artifacts/paper-intelligence.json \
-  --database artifacts/world-model.sqlite \
-  --embedding hash
-```
-
-The hash embedding provider is deterministic and intended for tests/offline development. For real semantic retrieval, install the optional model dependency and select SentenceTransformers:
+Run candidate discovery against an indexed Phase 3 world model:
 
 ```bash
-pip install -e '.[embeddings]'
-python -m agentic_research.cli index \
-  --input artifacts/paper-intelligence.json \
+python -m agentic_research.cli discover-gaps \
   --database artifacts/world-model.sqlite \
-  --embedding sentence-transformers \
-  --embedding-model sentence-transformers/all-MiniLM-L6-v2
+  --output artifacts/gap-discovery.json
 ```
 
-Hybrid retrieval combines lexical and dense rankings with Reciprocal Rank Fusion rather than mixing incomparable raw scores:
+For historical evaluation:
 
 ```bash
-python -m agentic_research.cli retrieve \
-  "retrieval factual accuracy" \
+python -m agentic_research.cli discover-gaps \
   --database artifacts/world-model.sqlite \
-  --mode hybrid \
-  --embedding sentence-transformers \
-  --reranker cross-encoder
+  --output artifacts/gaps-2022.json \
+  --temporal-cutoff 2022
 ```
 
-The same command supports deterministic lexical retrieval without embeddings:
-
-```bash
-python -m agentic_research.cli retrieve \
-  "retrieval factual accuracy" \
-  --database artifacts/world-model.sqlite \
-  --mode lexical \
-  --embedding none \
-  --reranker lexical
-```
-
-Citation/world-model traversal is directional:
-
-```bash
-python -m agentic_research.cli traverse \
-  "paper:paper-id" \
-  --database artifacts/world-model.sqlite \
-  --depth 2 \
-  --direction out \
-  --edge-type cites
-```
+Phase 4 produces **candidate gaps only**. It does not claim that a gap is globally novel or that it is scientifically valuable. Phase 5 performs broader search, counterevidence analysis, and novelty verification.
 
 ## Scientific integrity rules
 
@@ -135,7 +107,8 @@ python -m agentic_research.cli traverse \
 9. Hybrid retrieval never combines incomparable lexical and dense raw scores; it uses rank fusion.
 10. Vectors from different embedding models are isolated and never compared.
 11. Citation targets are never guessed; unresolved citations retain their reference provenance.
-12. Phase 3 retrieval results are evidence retrieval, not novelty verification or scientific conclusions.
+12. Phase 4 candidates are corpus-relative structural signals, not novelty claims.
+13. Phase 4 never changes a candidate to `survived`, `weakened`, `disproved`, or `uncertain`; those transitions belong to Phase 5.
 
 ## Repository layout
 
@@ -148,7 +121,7 @@ src/agentic_research/
   world_model/   persistent scientific graph + chunk/vector store
   ingestion/     deterministic local corpus ingestion
   retrieval/     provider contracts, embeddings, hybrid retrieval, reranking
-  gaps/          candidate-gap detection
+  gaps/          deterministic candidate-gap discovery
   agents/        agent contracts
   evaluation/    benchmark and metric contracts
   cli.py         command-line entry point
@@ -187,9 +160,10 @@ pip install -e '.[embeddings]'
 - [x] [Phase 1 acceptance gate](docs/phase-1.md)
 - [x] [Phase 2 acceptance gate](docs/phase-2.md)
 - [x] [Phase 3 acceptance gate](docs/phase-3.md)
-- [ ] Phase 4 acceptance gate
+- [x] [Phase 4 acceptance gate](docs/phase-4.md)
+- [ ] Phase 5 acceptance gate
 
-See `docs/phase-3-checklist.md` for the Phase 3 implementation checklist.
+See `docs/phase-4-checklist.md` for the Phase 4 implementation checklist.
 
 ## Roadmap
 
@@ -197,7 +171,7 @@ See `docs/phase-3-checklist.md` for the Phase 3 implementation checklist.
 - [x] Phase 1 literature intelligence
 - [x] Phase 2 evidence-grounded paper intelligence
 - [x] Phase 3 retrieval and scientific world model
-- [ ] Phase 4 gap discovery
+- [x] Phase 4 gap discovery
 - [ ] Phase 5 adversarial novelty
 - [ ] Phase 6 hypothesis reasoning
 - [ ] Phase 7 scientific execution
