@@ -1,6 +1,6 @@
 # Implementation roadmap
 
-## Phase 0 — Foundation (current)
+## Phase 0 — Foundation
 
 - Canonical paper/evidence/gap/hypothesis/experiment schemas
 - Deterministic local JSONL ingestion
@@ -11,16 +11,16 @@
 - CI
 - Research methodology and architecture docs
 
-## Phase 1 — Literature intelligence
+## Phase 1 — Literature intelligence (implemented)
 
-- OpenAlex adapter
-- Semantic Scholar adapter
-- arXiv adapter
-- canonical identity + deduplication
-- rate limiting and retry policy
-- temporal cutoff enforcement
-- full-text acquisition manifests
-- PDF/HTML parsing
+- [x] OpenAlex adapter
+- [x] Semantic Scholar adapter
+- [x] arXiv adapter
+- [x] canonical identity + deduplication
+- [x] rate limiting and retry policy
+- [x] temporal cutoff enforcement
+- [x] full-text acquisition manifests
+- [x] PDF/HTML parsing
 
 ## Phase 2 — Evidence-grounded paper intelligence
 
