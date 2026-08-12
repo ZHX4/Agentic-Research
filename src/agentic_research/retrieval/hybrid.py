@@ -27,6 +27,8 @@ class HybridRetriever:
             raise ValueError("query must not be empty")
         if limit < 1:
             raise ValueError("limit must be positive")
+        if candidate_limit is not None and candidate_limit < limit:
+            raise ValueError("candidate_limit must be greater than or equal to limit")
         if mode not in {"lexical", "dense", "hybrid"}:
             raise ValueError("mode must be lexical, dense, or hybrid")
         if mode in {"dense", "hybrid"} and self.embedder is None:
