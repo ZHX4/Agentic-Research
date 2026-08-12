@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from agentic_research.evaluation.comparison import compare_baselines, evaluate_ablation, summarize_costs
 from agentic_research.evaluation.engine import evaluate_extraction, evaluate_labels, evaluate_retrieval, evaluate_temporal
 from agentic_research.evaluation.human import evaluate_human_ratings
+from agentic_research.evaluation.report import build_report
 from agentic_research.schemas.phase8 import AblationSpec, BenchmarkCase, CostRecord, HumanRating, PredictionRecord
 
 app = typer.Typer(help="Agentic-Research Phase 8 evaluation and benchmarking.")
@@ -31,32 +32,27 @@ def _write(path: Path, payload: object) -> None:
 
 @app.command()
 def retrieval(cases: Path = typer.Option(..., exists=True, readable=True), predictions: Path = typer.Option(..., exists=True, readable=True), output: Path = typer.Option(...), system_name: str = typer.Option(...), benchmark_id: str = typer.Option("retrieval"), split: Literal["dev", "test"] = typer.Option("test"), k: int = typer.Option(10, min=1, max=1000)) -> None:
-    result = evaluate_retrieval(_read_json_list(cases, BenchmarkCase), _read_json_list(predictions, PredictionRecord), system_name=system_name, benchmark_id=benchmark_id, split=split, k=k)
-    _write(output, result.model_dump(mode="json"))
+    _write(output, evaluate_retrieval(_read_json_list(cases, BenchmarkCase), _read_json_list(predictions, PredictionRecord), system_name=system_name, benchmark_id=benchmark_id, split=split, k=k).model_dump(mode="json"))
 
 
 @app.command()
 def extraction(cases: Path = typer.Option(..., exists=True, readable=True), predictions: Path = typer.Option(..., exists=True, readable=True), output: Path = typer.Option(...), system_name: str = typer.Option(...)) -> None:
-    result = evaluate_extraction(_read_json_list(cases, BenchmarkCase), _read_json_list(predictions, PredictionRecord), system_name=system_name, benchmark_id="extraction")
-    _write(output, result.model_dump(mode="json"))
+    _write(output, evaluate_extraction(_read_json_list(cases, BenchmarkCase), _read_json_list(predictions, PredictionRecord), system_name=system_name, benchmark_id="extraction").model_dump(mode="json"))
 
 
 @app.command(name="classification")
 def classification(cases: Path = typer.Option(..., exists=True, readable=True), predictions: Path = typer.Option(..., exists=True, readable=True), output: Path = typer.Option(...), system_name: str = typer.Option(...), kind: Literal["gap", "novelty"] = typer.Option("gap"), positive: str | None = typer.Option(None)) -> None:
-    result = evaluate_labels(_read_json_list(cases, BenchmarkCase), _read_json_list(predictions, PredictionRecord), kind=kind, system_name=system_name, benchmark_id=kind, positive=positive)
-    _write(output, result.model_dump(mode="json"))
+    _write(output, evaluate_labels(_read_json_list(cases, BenchmarkCase), _read_json_list(predictions, PredictionRecord), kind=kind, system_name=system_name, benchmark_id=kind, positive=positive).model_dump(mode="json"))
 
 
 @app.command()
 def temporal(cases: Path = typer.Option(..., exists=True, readable=True), predictions: Path = typer.Option(..., exists=True, readable=True), output: Path = typer.Option(...), system_name: str = typer.Option(...)) -> None:
-    result = evaluate_temporal(_read_json_list(cases, BenchmarkCase), _read_json_list(predictions, PredictionRecord), system_name=system_name, benchmark_id="temporal")
-    _write(output, result.model_dump(mode="json"))
+    _write(output, evaluate_temporal(_read_json_list(cases, BenchmarkCase), _read_json_list(predictions, PredictionRecord), system_name=system_name, benchmark_id="temporal").model_dump(mode="json"))
 
 
 @app.command()
 def human(ratings: Path = typer.Option(..., exists=True, readable=True), output: Path = typer.Option(...), evaluation_id: str = typer.Option(...), task: Literal["gap_quality", "novelty_verdict", "extraction_quality", "hypothesis_quality"] = typer.Option(...)) -> None:
-    result = evaluate_human_ratings(_read_json_list(ratings, HumanRating), evaluation_id=evaluation_id, task=task)
-    _write(output, result.model_dump(mode="json"))
+    _write(output, evaluate_human_ratings(_read_json_list(ratings, HumanRating), evaluation_id=evaluation_id, task=task).model_dump(mode="json"))
 
 
 @app.command()
@@ -68,13 +64,21 @@ def baseline(primary: Path = typer.Option(..., exists=True, readable=True), base
 
 @app.command()
 def ablation(spec: Path = typer.Option(..., exists=True, readable=True), baseline_metrics: Path = typer.Option(..., exists=True, readable=True), ablated_metrics: Path = typer.Option(..., exists=True, readable=True), output: Path = typer.Option(...)) -> None:
-    result = evaluate_ablation(AblationSpec.model_validate_json(spec.read_text(encoding="utf-8")), {str(k): float(v) for k, v in json.loads(baseline_metrics.read_text(encoding="utf-8")).items()}, {str(k): float(v) for k, v in json.loads(ablated_metrics.read_text(encoding="utf-8")).items()})
-    _write(output, result.model_dump(mode="json"))
+    spec_obj = AblationSpec.model_validate_json(spec.read_text(encoding="utf-8"))
+    baseline = {str(k): float(v) for k, v in json.loads(baseline_metrics.read_text(encoding="utf-8")).items()}
+    ablated = {str(k): float(v) for k, v in json.loads(ablated_metrics.read_text(encoding="utf-8")).items()}
+    _write(output, evaluate_ablation(spec_obj, baseline, ablated).model_dump(mode="json"))
 
 
 @app.command(name="summarize-cost")
 def summarize_cost(costs: Path = typer.Option(..., exists=True, readable=True), output: Path = typer.Option(...)) -> None:
     _write(output, [metric.model_dump(mode="json") for metric in summarize_costs(_read_json_list(costs, CostRecord))])
+
+
+@app.command()
+def report(system_name: str = typer.Option(...), output: Path = typer.Option(...), benchmark: list[Path] = typer.Option([], exists=True, readable=True), human: list[Path] = typer.Option([], exists=True, readable=True), baseline: list[Path] = typer.Option([], exists=True, readable=True), ablation: list[Path] = typer.Option([], exists=True, readable=True), cost: list[Path] = typer.Option([], exists=True, readable=True)) -> None:
+    result = build_report(system_name, benchmark_files=benchmark, human_files=human, baseline_files=baseline, ablation_files=ablation, cost_files=cost)
+    _write(output, result.model_dump(mode="json"))
 
 
 if __name__ == "__main__":
