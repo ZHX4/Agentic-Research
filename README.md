@@ -1,8 +1,8 @@
 # Agentic-Research
 
-An evidence-grounded research-agent foundation for scientific gap discovery, adversarial novelty verification, hypothesis generation, and eventually reproducible experimental validation.
+An evidence-grounded research-agent system for scientific literature intelligence, gap discovery, adversarial novelty verification, hypothesis generation, and eventually reproducible experimental validation.
 
-> **Status:** Phase 0 foundation implemented. Phase 1 has not started. Phase 0 deliberately stops before network retrieval, full-text parsing, novelty verification, and autonomous experiment execution.
+> **Status:** Phase 1 implemented. Phase 0 and Phase 1 are complete; Phase 2 has not started.
 
 ## Research objective
 
@@ -21,61 +21,60 @@ Research Goal
 Literature Planner ---> OpenAlex / Semantic Scholar / arXiv
       |
       v
-Hybrid Retrieval (lexical + semantic + citation + metadata)
+Literature Intelligence
+  - source adapters
+  - temporal filtering
+  - canonical identity
+  - deduplication
+  - full-text acquisition
+  - PDF/HTML parsing
       |
       v
-Paper Intelligence ---> Evidence Objects
+Hybrid Retrieval (future)
       |
       v
-Scientific World Model (documents + claims + methods + tasks + datasets + graph)
+Paper Intelligence ---> Evidence Objects (future)
       |
       v
-Gap Hunter
+Scientific World Model (future)
       |
       v
-Devil's Advocate ----> Counter-evidence search
+Gap Hunter (future)
       |
       v
-Novelty Verification
+Devil's Advocate (future)
       |
       v
-Hypothesis Factory
+Novelty Verification (future)
       |
       v
-Tournament / Evolution
+Hypothesis Factory (future)
       |
       v
-Experiment Planner
+Experiment Planner / Sandbox (future)
       |
       v
-Sandboxed Experiment Engine
-      |
-      +----> Falsification
-      |
-      v
-Independent Review
-      |
-      v
-Traceable Research Report / Paper
+Independent Review / Paper (future)
 ```
 
-Only the foundation through deterministic local candidate-gap discovery is implemented in Phase 0.
+Phase 1 implements literature acquisition and normalization only. It deliberately stops before semantic retrieval, evidence extraction, graph reasoning, novelty verification, and autonomous experimentation.
 
 ## Repository layout
 
 ```text
 src/agentic_research/
+  literature/    source adapters, transport, identity, dedup, full-text
   schemas/       canonical scientific data contracts
   storage/       persistence abstractions
-  ingestion/     corpus ingestion adapters
-  retrieval/     retrieval interfaces
+  ingestion/     deterministic local corpus ingestion
+  retrieval/     provider-independent retrieval contracts
   gaps/          candidate-gap detection
   agents/        agent contracts
   evaluation/    benchmark and metric contracts
   cli.py         command-line entry point
 
-docs/            architecture, methodology, roadmap, Phase 0 acceptance
-tests/           unit and smoke tests
+docs/            architecture, methodology, roadmap, phase gates
+tests/           unit and offline integration/smoke tests
 configs/         reproducible configuration
 data/            deterministic demo data only
 ```
@@ -100,7 +99,26 @@ python -m agentic_research.cli validate --input data/demo/papers.jsonl
 python -m agentic_research.cli gaps --input data/demo/papers.jsonl --output artifacts/demo/gaps.json
 ```
 
-The demo pipeline is deterministic and does **not** require API keys.
+## Phase 1: live literature search
+
+Set provider credentials in `.env` using `.env.example` as the template.
+
+```bash
+python -m agentic_research.cli search "retrieval augmented generation" --limit 20 --temporal-cutoff 2025 --output artifacts/search.json
+```
+
+OpenAlex requires its API key for the Works API. Semantic Scholar can be used without a key, although its documentation recommends using an API key and respecting provider rate limits. The adapters use conservative configurable intervals.
+
+## Phase 1: full-text acquisition and parsing
+
+Given a JSONL corpus of canonical `Paper` records:
+
+```bash
+python -m agentic_research.cli acquire --input data/demo/papers.jsonl --output artifacts/fulltext/manifests.jsonl --output-dir artifacts/fulltext/files
+python -m agentic_research.cli parse --manifest artifacts/fulltext/manifests.jsonl --output artifacts/fulltext/documents.jsonl
+```
+
+Acquisition records the source, requested/final URL, media type, byte count, SHA-256, timestamp, and status. Parsing supports PDF and HTML in Phase 1.
 
 ## Development checks
 
@@ -114,31 +132,31 @@ pytest -q
 ## Scientific integrity rules
 
 1. A missing retrieval result is never treated as proof of novelty.
-2. Every scientific claim must be traceable to evidence or an experiment artifact.
+2. Every scientific claim must eventually be traceable to evidence or an experiment artifact.
 3. Historical/temporal benchmarks must enforce strict information cutoffs.
 4. LLM self-evaluation is not accepted as sole evidence of novelty.
 5. Generated code must run inside an isolated sandbox before untrusted execution is enabled.
 6. Negative and null results are first-class research artifacts.
-7. Research runs must record configuration, dataset manifests, model identifiers, code revision, and seeds once those providers are enabled.
+7. Provider output is treated as time-varying external data and is not used as a deterministic benchmark fixture.
 
-## Phase 0 acceptance
+## Phase gates
 
-See [`docs/phase-0.md`](docs/phase-0.md) for the complete acceptance gate and [`docs/phase-0-checklist.md`](docs/phase-0-checklist.md) for the implementation checklist.
+- [x] [Phase 0 acceptance gate](docs/phase-0.md)
+- [x] [Phase 1 acceptance gate](docs/phase-1.md)
+- [ ] Phase 2 acceptance gate
+
+See `docs/phase-1-checklist.md` for the implementation checklist.
 
 ## Roadmap
 
-- [x] Phase 0 foundation package and schemas
-- [x] Deterministic local corpus ingestion
-- [x] First candidate-gap detector
-- [x] CLI and developer tooling
-- [x] Scientific methodology documentation
-- [ ] OpenAlex / Semantic Scholar / arXiv adapters
-- [ ] Full-text parsing and evidence extraction
-- [ ] Hybrid retrieval
-- [ ] Scientific knowledge graph
-- [ ] Adversarial gap verification
-- [ ] Novelty engine
-- [ ] Hypothesis tournament
-- [ ] Experiment planner and sandbox
-- [ ] Temporal benchmark
-- [ ] End-to-end autonomous discovery
+- [x] Phase 0 foundation
+- [x] Phase 1 literature intelligence
+- [ ] Phase 2 evidence-grounded paper intelligence
+- [ ] Phase 3 retrieval and scientific world model
+- [ ] Phase 4 gap discovery
+- [ ] Phase 5 adversarial novelty
+- [ ] Phase 6 hypothesis reasoning
+- [ ] Phase 7 scientific execution
+- [ ] Phase 8 evaluation
+- [ ] Phase 9 autonomous discovery
+- [ ] Phase 10 publication
