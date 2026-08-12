@@ -21,16 +21,18 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
         datasets: dict[str, set[str]] = {paper_id: set() for paper_id in paper_ids}
         tasks: dict[str, set[str]] = {paper_id: set() for paper_id in paper_ids}
         field_map = {"has_method": methods, "has_dataset": datasets, "has_task": tasks}
-        placeholders = ",".join("?" for _ in paper_ids)
+        ordered_ids = sorted(paper_ids)
+        placeholders = ",".join("?" for _ in ordered_ids)
         rows = self.world.connection.execute(
             f"""
             SELECT e.source_id, e.edge_type, n.label
             FROM edges e
             JOIN nodes n ON n.node_id=e.target_id
-            WHERE e.source_id IN ({','.join('?' for _ in paper_ids)})
+            WHERE e.source_id IN ({placeholders})
               AND e.edge_type IN ('has_method','has_dataset','has_task')
+            ORDER BY e.source_id, e.edge_type, n.node_id
             """,
-            list(paper_ids),
+            ordered_ids,
         ).fetchall()
         for row in rows:
             paper_id = row["source_id"][len("paper:"):] if row["source_id"].startswith("paper:") else row["source_id"]
@@ -40,7 +42,7 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
         candidate_dataset = _world_key(candidate.dataset or "")
         candidate_task = _world_key(candidate.task or "")
         matches: set[str] = set()
-        for paper_id in paper_ids:
+        for paper_id in ordered_ids:
             if candidate_method and candidate_method not in methods[paper_id]:
                 continue
             if candidate_dataset and candidate_dataset not in datasets[paper_id]:
@@ -54,7 +56,6 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
     def verify(self, candidate: GapCandidate, config: NoveltyVerificationConfig | None = None) -> GapVerificationResult:
         cfg = config or NoveltyVerificationConfig()
         result = super().verify(candidate, cfg)
-
         prior_ids = {match.paper.paper_id for match in result.prior_work if match.source == "local-world-model"}
         local_exact = self._local_exact_matches(candidate, prior_ids)
         adjusted_matches = []
@@ -65,7 +66,7 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
                     update={
                         "exact_combination": True,
                         "challenge_type": "direct",
-                        "similarity": max(match.similarity, 1.0),
+                        "similarity": 1.0,
                         "rationale": "The local scientific world model explicitly contains the candidate method/dataset/task combination.",
                     }
                 )
