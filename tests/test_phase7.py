@@ -68,10 +68,9 @@ def test_sandbox_rejects_forbidden_docker_flags() -> None:
         executor._validate_command(["-v", "/host:/container"])
 
 
-def test_falsification_uses_explicit_threshold() -> None:
+def _experiment_with_direction(direction: str, threshold: float) -> ExperimentSpec:
     hypothesis = make_hypothesis()
-    plan = FalsificationPlan(plan_id="f1", hypothesis_id=hypothesis.hypothesis_id, primary_metric="accuracy", null_hypothesis="no improvement", rejection_criteria=["accuracy below threshold"], minimum_effect_size=0.8)
-    spec = ExperimentSpec(
+    return ExperimentSpec(
         experiment_id="e1",
         hypothesis_id=hypothesis.hypothesis_id,
         research_question=hypothesis.research_question,
@@ -79,51 +78,51 @@ def test_falsification_uses_explicit_threshold() -> None:
         code_path="run.py",
         code_sha256=hashlib.sha256(b"code").hexdigest(),
         datasets=[],
-        metrics=["accuracy"],
+        metrics=["score"],
         seeds=[1, 2],
-        falsification=plan,
+        falsification=FalsificationPlan(
+            plan_id="f1",
+            hypothesis_id=hypothesis.hypothesis_id,
+            primary_metric="score",
+            metric_direction=direction,
+            null_hypothesis="none",
+            rejection_criteria=["threshold"],
+            minimum_effect_size=threshold,
+        ),
         sandbox=SandboxPolicy(image="python:3.11-slim"),
     )
-    runs = [
-        SeedRun(seed=1, status="succeeded", duration_seconds=1, metrics=[MetricRecord(name="accuracy", value=0.7, seed=1, split="test")]),
-        SeedRun(seed=2, status="succeeded", duration_seconds=1, metrics=[MetricRecord(name="accuracy", value=0.75, seed=2, split="test")]),
-    ]
+
+
+def test_falsification_uses_higher_direction() -> None:
+    spec = _experiment_with_direction("higher", 0.8)
+    runs = [SeedRun(seed=1, status="succeeded", duration_seconds=1, metrics=[MetricRecord(name="score", value=0.7, seed=1, split="test")]), SeedRun(seed=2, status="succeeded", duration_seconds=1, metrics=[MetricRecord(name="score", value=0.75, seed=2, split="test")])]
     falsified, rationale = evaluate_falsification(spec, runs)
     assert falsified is True
     assert rationale
 
 
+def test_falsification_uses_lower_direction() -> None:
+    spec = _experiment_with_direction("lower", 0.2)
+    runs = [SeedRun(seed=1, status="succeeded", duration_seconds=1, metrics=[MetricRecord(name="score", value=0.3, seed=1, split="test")]), SeedRun(seed=2, status="succeeded", duration_seconds=1, metrics=[MetricRecord(name="score", value=0.25, seed=2, split="test")])]
+    falsified, rationale = evaluate_falsification(spec, runs)
+    assert falsified is True
+    assert rationale
+
+
+def test_falsification_without_operational_threshold_is_inconclusive() -> None:
+    spec = _experiment_with_direction("higher", 0.8).model_copy(update={"falsification": _experiment_with_direction("higher", 0.8).falsification.model_copy(update={"minimum_effect_size": None})})
+    runs = [SeedRun(seed=1, status="succeeded", duration_seconds=1, metrics=[MetricRecord(name="score", value=0.1, seed=1, split="test")]), SeedRun(seed=2, status="succeeded", duration_seconds=1, metrics=[MetricRecord(name="score", value=0.2, seed=2, split="test")])]
+    falsified, _ = evaluate_falsification(spec, runs)
+    assert falsified is None
+
+
 def test_experiment_spec_rejects_path_escape() -> None:
     with pytest.raises(ValueError):
-        ExperimentSpec(
-            experiment_id="e",
-            hypothesis_id="h",
-            research_question="q",
-            command=["python", "x"],
-            code_path="../run.py",
-            code_sha256=hashlib.sha256(b"x").hexdigest(),
-            datasets=[],
-            metrics=["m"],
-            seeds=[1],
-            falsification=FalsificationPlan(plan_id="f", hypothesis_id="h", primary_metric="m", null_hypothesis="n", rejection_criteria=["r"]),
-            sandbox=SandboxPolicy(image="python:3.11-slim"),
-        )
+        _experiment_with_direction("higher", 0.8).model_copy(update={"code_path": "../run.py"})
 
 
 def test_experiment_tree_integrity() -> None:
-    spec = ExperimentSpec(
-        experiment_id="e1",
-        hypothesis_id="hyp-1",
-        research_question="question",
-        command=["python", "run.py"],
-        code_path="run.py",
-        code_sha256=hashlib.sha256(b"code").hexdigest(),
-        datasets=[],
-        metrics=["accuracy"],
-        seeds=[1],
-        falsification=FalsificationPlan(plan_id="f1", hypothesis_id="hyp-1", primary_metric="accuracy", null_hypothesis="none", rejection_criteria=["fail"]),
-        sandbox=SandboxPolicy(image="python:3.11-slim"),
-    )
+    spec = _experiment_with_direction("higher", 0.8)
     tree = create_tree(spec)
     result = ExperimentResult(
         result_id="r1",
