@@ -1,5 +1,7 @@
 """Reranking providers for Phase 3 retrieval."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 import re
 from typing import Sequence
@@ -52,5 +54,5 @@ class CrossEncoderReranker(Reranker):
         if not hits:
             return []
         scores = self._model.predict([(query, hit.text) for hit in hits])
-        output = [hit.model_copy(update={"rerank_score": max(0.0, float(score))}) for hit, score in zip(hits, scores, strict=True)]
+        output = [hit.model_copy(update={"rerank_score": float(score)}) for hit, score in zip(hits, scores, strict=True)]
         return sorted(output, key=lambda item: (-float(item.rerank_score or 0), item.chunk_id))
