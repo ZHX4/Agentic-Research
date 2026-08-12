@@ -15,10 +15,10 @@ Phase 4 analyzes the Phase 3 scientific world model and produces **candidate res
 
 - Every candidate is emitted with `status="candidate"`.
 - Candidate claims are explicitly corpus-relative; absence from the corpus is not proof of novelty.
-- Each signal carries paper IDs and actual world-model node IDs for provenance.
-- Deterministic IDs are content-derived, and the discovery `run_id` includes a fingerprint of the indexed snapshot plus configuration.
+- Each signal carries supporting paper IDs. Directly resolvable graph IDs are stored in `node_ids`; entity labels are stored separately in `entity_values` and are deliberately resolved against canonical world-model nodes only when the graph lookup can prove the mapping.
+- Deterministic IDs are content-derived, and the discovery `run_id` includes the configured temporal snapshot and detector configuration.
 - Temporal cutoffs exclude future papers and papers with unknown years when a cutoff is requested.
-- Detector thresholds are configurable and stored in the discovery result's reproducible configuration context.
+- Detector thresholds are configurable and the discovery output records the resulting run fingerprint.
 - Phase 5 must perform query expansion, broader literature search, counterevidence search, nearest-prior-work comparison, and novelty uncertainty reporting.
 
 ## CLI
@@ -58,7 +58,7 @@ python -m agentic_research.cli discover-gaps \
 - `signals`
 - `candidates`
 
-A `GapSignal` contains the detector type, statement, supporting papers, actual graph node IDs, normalized entity values where applicable, support count, structural score, and provenance descriptors.
+A `GapSignal` contains the detector type, statement, supporting papers, resolvable graph node IDs where applicable, normalized entity values for unresolved entity references, support count, structural score, and provenance descriptors.
 
 ## Deliberate limitations
 
