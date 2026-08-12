@@ -18,11 +18,7 @@ class RetryPolicy:
 
 
 class RateLimiter:
-    """Process-local minimum-interval limiter.
-
-    This deliberately does not attempt distributed coordination. Production
-    deployments should use one limiter per provider credential/worker pool.
-    """
+    """Process-local minimum-interval limiter."""
 
     def __init__(self, min_interval_seconds: float) -> None:
         if min_interval_seconds < 0:
@@ -52,10 +48,14 @@ class HttpClient:
         rate_limiter: RateLimiter | None = None,
         retry_policy: RetryPolicy | None = None,
         transport: httpx.BaseTransport | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
+        request_headers = {"User-Agent": user_agent}
+        if headers:
+            request_headers.update(headers)
         self._client = httpx.Client(
             timeout=timeout_seconds,
-            headers={"User-Agent": user_agent},
+            headers=request_headers,
             transport=transport,
             follow_redirects=True,
         )
@@ -80,8 +80,9 @@ class HttpClient:
                 if response.status_code not in self._RETRYABLE_STATUS_CODES:
                     response.raise_for_status()
                     return response
-                delay = self._retry_delay(response, attempt)
-                time.sleep(delay)
+                if attempt + 1 >= self._retry.max_attempts:
+                    response.raise_for_status()
+                time.sleep(self._retry_delay(response, attempt))
             except (httpx.TimeoutException, httpx.NetworkError) as exc:
                 last_error = exc
                 if attempt + 1 >= self._retry.max_attempts:
