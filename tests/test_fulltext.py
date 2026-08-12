@@ -2,9 +2,22 @@ from pathlib import Path
 
 import httpx
 
-from agentic_research.literature.fulltext import FullTextAcquirer, parse_full_text
+from agentic_research.literature.fulltext import FullTextAcquirer, FullTextManifest, parse_full_text
 from agentic_research.literature.transport import HttpClient, RateLimiter
 from agentic_research.schemas import Paper
+
+
+def test_missing_fulltext_url_is_recorded_as_failed(tmp_path: Path) -> None:
+    client = HttpClient(user_agent="test", rate_limiter=RateLimiter(0))
+    try:
+        manifest = FullTextAcquirer(client=client, output_dir=tmp_path).acquire(
+            Paper(paper_id="p1", title="No URL")
+        )
+        assert manifest.status == "failed"
+        assert manifest.requested_url is None
+        assert "No full-text candidate URL" in (manifest.error or "")
+    finally:
+        client.close()
 
 
 def test_html_acquisition_and_parsing(tmp_path: Path) -> None:
@@ -40,8 +53,6 @@ def test_pdf_parser_reads_text(tmp_path: Path) -> None:
     page.insert_text((72, 72), "Hello PDF")
     document.save(pdf_path)
     document.close()
-
-    from agentic_research.literature.fulltext import FullTextManifest
 
     manifest = FullTextManifest(
         paper_id="p1",
