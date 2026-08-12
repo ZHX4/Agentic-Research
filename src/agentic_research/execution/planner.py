@@ -65,6 +65,7 @@ def build_experiment_spec(
             {
                 "hypothesis_id": hypothesis.hypothesis_id,
                 "code_sha256": code_hash,
+                "code_path": code_path.name,
                 "command": command,
                 "seeds": selected_seeds,
                 "datasets": [dataset.dataset_id for dataset in datasets],
@@ -77,6 +78,7 @@ def build_experiment_spec(
         hypothesis_id=hypothesis.hypothesis_id,
         research_question=hypothesis.research_question,
         command=command,
+        code_path=code_path.name,
         code_sha256=code_hash,
         datasets=datasets,
         baselines=["strongest appropriate baseline", "matched control"],
