@@ -27,8 +27,17 @@ _POSITIVE = {
 _NEGATIVE = {
     "decrease", "decreases", "decreased", "lower", "lowers", "worse", "underperform", "underperforms",
     "harm", "harms", "hurt", "hurts", "degrade", "degrades", "failure", "fails", "failed",
-    "ineffective", "insignificant", "no", "not", "without",
+    "ineffective", "insignificant",
 }
+_NEGATED_POSITIVE_PATTERNS = (
+    r"\bdoes not\s+(?:significantly\s+)?improv(?:e|es|ed|ing)\b",
+    r"\bdo not\s+(?:significantly\s+)?improv(?:e|es|ed|ing)\b",
+    r"\bdid not\s+(?:significantly\s+)?improv(?:e|es|ed|ing)\b",
+    r"\bnot\s+(?:significantly\s+)?better\b",
+    r"\bno\s+improvement\b",
+    r"\bwithout\s+(?:any\s+)?improvement\b",
+    r"\bfails?\s+to\s+(?:significantly\s+)?improv(?:e|es|ed|ing)\b",
+)
 _CONDITION_KEYS = {
     "condition", "conditions", "setting", "settings", "language", "languages", "modality", "modalities",
     "resource", "resources", "resource_regime", "data_regime", "regime", "population", "environment",
@@ -76,6 +85,16 @@ def _metadata_values(metadata: dict[str, object], keys: set[str]) -> set[str]:
             if normalized and len(item) <= 200:
                 values.add(normalized)
     return values
+
+
+def _claim_polarity(text: str) -> tuple[bool, bool]:
+    """Return positive/negative result polarity with simple negation handling."""
+    folded = text.casefold()
+    negated_positive = any(re.search(pattern, folded) for pattern in _NEGATED_POSITIVE_PATTERNS)
+    tokens = set(_normalize(text).split())
+    positive = bool(tokens & _POSITIVE) and not negated_positive
+    negative = bool(tokens & _NEGATIVE) or negated_positive
+    return positive, negative
 
 
 def _load_snapshot(world: ScientificWorldModel, cutoff: int | None) -> tuple[list[sqlite3.Row], dict[str, dict[str, set[str]]], dict[str, dict[str, set[str]]]]:
@@ -153,7 +172,8 @@ def _missing_combinations(by_paper: dict[str, dict[str, set[str]]], entity_paper
         for dataset, dataset_papers in sorted(datasets.items()):
             if len(dataset_papers) < cfg.min_entity_support or (method, dataset) in direct_md:
                 continue
-            for task in sorted(method_tasks[method] & dataset_tasks[dataset]):
+            shared_tasks = method_tasks[method] & dataset_tasks[dataset]
+            for task in sorted(shared_tasks):
                 signals.append(GapSignal(
                     signal_id=_stable_id("signal", ["missing_combination", "method-dataset-task", method, dataset, task]),
                     gap_type="missing_combination",
@@ -162,7 +182,7 @@ def _missing_combinations(by_paper: dict[str, dict[str, set[str]]], entity_paper
                     node_ids=[_entity_node_id("method", method), _entity_node_id("dataset", dataset), _entity_node_id("task", task)],
                     entity_values={"method": method, "dataset": dataset, "task": task},
                     support_count=min(len(method_papers), len(dataset_papers)),
-                    structural_score=_mean_score(min(1.0, len(method_papers) / (2 * cfg.min_entity_support)), min(1.0, len(dataset_papers) / (2 * cfg.min_entity_support)), min(1.0, len(method_tasks[method] & dataset_tasks[dataset]) / 2)),
+                    structural_score=_mean_score(min(1.0, len(method_papers) / (2 * cfg.min_entity_support)), min(1.0, len(dataset_papers) / (2 * cfg.min_entity_support)), min(1.0, len(shared_tasks) / 2)),
                     provenance=["shared-task context"],
                 ))
     for method, method_papers in sorted(methods.items()):
@@ -185,8 +205,8 @@ def _missing_combinations(by_paper: dict[str, dict[str, set[str]]], entity_paper
                     structural_score=_mean_score(min(1.0, len(method_papers) / (2 * cfg.min_entity_support)), min(1.0, len(task_papers) / (2 * cfg.min_entity_support))),
                     provenance=["shared-dataset context"],
                 ))
-    unique = {s.signal_id: s for s in signals}
-    signals = sorted(unique.values(), key=lambda s: (-s.structural_score, s.signal_id))[:cfg.max_candidates_per_type]
+    signals = list({signal.signal_id: signal for signal in signals}.values())
+    signals = sorted(signals, key=lambda s: (-s.structural_score, s.signal_id))[:cfg.max_candidates_per_type]
     return signals, [_candidate(s) for s in signals]
 
 
@@ -196,13 +216,14 @@ def _contradictions(claims: list[dict[str, object]], cfg: GapDiscoveryConfig) ->
         if claim["claim_type"] != "result":
             continue
         text = str(claim["label"])
-        tokens = set(_normalize(text).split())
-        positive, negative = bool(tokens & _POSITIVE), bool(tokens & _NEGATIVE)
+        positive, negative = _claim_polarity(text)
         if not positive and not negative:
             continue
         topic = _normalize(text)
         for marker in _POSITIVE | _NEGATIVE:
             topic = re.sub(rf"\b{re.escape(marker)}\b", " ", topic)
+        for marker_pattern in _NEGATED_POSITIVE_PATTERNS:
+            topic = re.sub(marker_pattern, " ", topic, flags=re.IGNORECASE)
         topic = _normalize(topic)
         if len(topic.split()) < 2:
             continue
@@ -249,14 +270,12 @@ def _underexplored_conditions(papers: list[sqlite3.Row], by_paper: dict[str, dic
     for (method, task), relevant in sorted(pair_papers.items()):
         if len(relevant) < cfg.min_entity_support:
             continue
-        method_context = set().union(*(entity for entity in (by_paper[p].get("methods", set()) for p in relevant)))
-        task_context = set().union(*(entity for entity in (by_paper[p].get("tasks", set()) for p in relevant)))
+        context_papers = relevant
         for condition, condition_papers in sorted(condition_support.items()):
             if len(condition_papers) < cfg.min_condition_support:
                 continue
-            anchored = condition_papers & relevant
-            context_support = len(condition_papers & relevant)
-            if context_support == 0 and not (condition_papers & set().union(*(set().union(by_paper[p].get("methods", set()), by_paper[p].get("tasks", set())) for p in relevant))):
+            anchored = condition_papers & context_papers
+            if not anchored:
                 continue
             coverage = len(anchored) / len(relevant)
             if coverage > cfg.max_underexplored_coverage:
