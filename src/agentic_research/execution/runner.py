@@ -21,7 +21,10 @@ def _aggregate_metrics(seed_runs: list[SeedRun]) -> list[MetricRecord]:
     for run in seed_runs:
         for metric in run.metrics:
             grouped.setdefault((metric.name, metric.split), []).append(metric)
-    return [MetricRecord(name=name, value=mean(item.value for item in values), seed=-1, split=split) for (name, split), values in sorted(grouped.items())]
+    return [
+        MetricRecord(name=name, value=mean(item.value for item in values), seed=-1, split=split)
+        for (name, split), values in sorted(grouped.items())
+    ]
 
 
 def _parse_metrics(run: SeedRun, artifact_dir: Path) -> SeedRun:
@@ -32,7 +35,15 @@ def _parse_metrics(run: SeedRun, artifact_dir: Path) -> SeedRun:
         payload = json.loads(metrics_file.read_text(encoding="utf-8"))
         if not isinstance(payload, list) or not payload:
             raise ValueError("metrics.json must contain a non-empty JSON array")
-        records = [MetricRecord(name=str(item["name"]), value=float(item["value"]), seed=run.seed, split=str(item.get("split", "test"))) for item in payload]
+        records = [
+            MetricRecord(
+                name=str(item["name"]),
+                value=float(item["value"]),
+                seed=run.seed,
+                split=str(item.get("split", "test")),
+            )
+            for item in payload
+        ]
         return run.model_copy(update={"metrics": records})
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         return run.model_copy(update={"status": "failed", "error": f"Invalid metrics.json: {exc}"})
@@ -80,16 +91,16 @@ def evaluate_falsification(spec: ExperimentSpec, runs: list[SeedRun]) -> tuple[b
         return None, "Falsification cannot be decided because not all seed runs succeeded."
     primary = spec.falsification.primary_metric
     values = [m.value for run in runs for m in run.metrics if m.name == primary and m.split == "test"]
-    if not values:
-        return None, f"Primary metric {primary!r} was not emitted by the experiment."
+    if len(values) != len(runs):
+        return None, f"Primary metric {primary!r} must be emitted exactly once per successful seed on the test split."
     threshold = spec.falsification.minimum_effect_size
     if threshold is None:
         return None, "No operational minimum_effect_size was specified; remaining rejection criteria require domain-specific review."
-    if spec.falsification.metric_direction == "higher" and max(values) < threshold:
-        return True, "Primary metric remained below the prespecified minimum effect size."
-    if spec.falsification.metric_direction == "lower" and min(values) > threshold:
-        return True, "Primary metric remained above the prespecified maximum acceptable value."
-    return False, "The configured metric threshold was not crossed. This is not evidence that the hypothesis is true."
+    if spec.falsification.metric_direction == "higher" and min(values) < threshold:
+        return True, "At least one seed remained below the prespecified minimum effect size."
+    if spec.falsification.metric_direction == "lower" and max(values) > threshold:
+        return True, "At least one seed remained above the prespecified maximum acceptable value."
+    return False, "The configured metric threshold was not crossed for any seed. This is not evidence that the hypothesis is true."
 
 
 def _is_reproducible(runs: list[SeedRun]) -> bool:
@@ -98,4 +109,8 @@ def _is_reproducible(runs: list[SeedRun]) -> bool:
         for metric in run.metrics:
             if metric.split == "test":
                 by_metric.setdefault(metric.name, []).append(metric.value)
-    return all(len(values) >= 2 and max(values) - min(values) <= max(1e-12, 0.10 * max(abs(v) for v in values)) for values in by_metric.values())
+    return all(
+        len(values) >= 2
+        and max(values) - min(values) <= max(1e-12, 0.10 * max(abs(v) for v in values))
+        for values in by_metric.values()
+    )
