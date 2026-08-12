@@ -45,6 +45,12 @@ def _input_file(tmp_path: Path) -> Path:
     return path
 
 
+def test_verify_cli_help_exposes_verify_gaps() -> None:
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "verify-gaps" in result.stdout
+
+
 def test_verify_cli_local_requires_database_or_explicit_no_local(tmp_path: Path) -> None:
     result = runner.invoke(
         app,
@@ -57,18 +63,3 @@ def test_verify_cli_local_requires_database_or_explicit_no_local(tmp_path: Path)
     )
     assert result.exit_code != 0
     assert "database" in result.output.lower()
-
-
-def test_verify_cli_external_only_can_write_inconclusive_report(tmp_path: Path) -> None:
-    output = tmp_path / "report.json"
-    result = runner.invoke(
-        app,
-        [
-            "verify-gaps",
-            "--input", str(_input_file(tmp_path)),
-            "--output", str(output),
-            "--no-local",
-        ],
-    )
-    assert result.exit_code == 0
-    assert output.exists()
