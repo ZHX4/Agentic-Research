@@ -1,0 +1,108 @@
+# Implementation roadmap
+
+## Phase 0 — Foundation (current)
+
+- Canonical paper/evidence/gap/hypothesis/experiment schemas
+- Deterministic local JSONL ingestion
+- Candidate missing-combination detector
+- Provider-agnostic agent and retrieval contracts
+- Provenance contract
+- CLI
+- CI
+- Research methodology and architecture docs
+
+## Phase 1 — Literature intelligence
+
+- OpenAlex adapter
+- Semantic Scholar adapter
+- arXiv adapter
+- canonical identity + deduplication
+- rate limiting and retry policy
+- temporal cutoff enforcement
+- full-text acquisition manifests
+- PDF/HTML parsing
+
+## Phase 2 — Evidence-grounded paper intelligence
+
+- section-aware chunking
+- table/figure extraction
+- structured field extraction
+- claim/evidence linking
+- extraction confidence calibration
+- citation graph ingestion
+
+## Phase 3 — Retrieval and world model
+
+- lexical retrieval
+- embedding retrieval
+- reranking
+- citation traversal
+- metadata filters
+- hybrid retrieval
+- scientific knowledge graph
+
+## Phase 4 — Gap discovery
+
+- missing combinations
+- contradictions
+- underexplored conditions
+- unresolved limitations
+- cross-domain connections
+- graph-based negative-space analysis
+
+## Phase 5 — Adversarial novelty
+
+- Devil's Advocate agent
+- query expansion
+- alternate terminology search
+- nearest-prior-work comparison
+- counterevidence registry
+- novelty uncertainty reporting
+
+## Phase 6 — Hypothesis reasoning
+
+- hypothesis factory
+- diversity control
+- clustering and deduplication
+- tournament ranking
+- evolution/reflection
+- Pareto ranking across novelty/significance/feasibility
+
+## Phase 7 — Scientific execution
+
+- experiment planner
+- falsification planning
+- Docker sandbox
+- dataset manifests
+- multi-seed execution
+- metrics and artifact collection
+- experiment search tree
+
+## Phase 8 — Evaluation
+
+- retrieval benchmark
+- extraction benchmark
+- gap benchmark
+- novelty benchmark
+- temporal benchmark
+- human evaluation
+- baseline reproduction
+- ablations
+- cost/compute accounting
+
+## Phase 9 — Autonomous discovery
+
+- closed-loop research runs
+- durable state
+- experiment checkpointing
+- independent reviewer agents
+- provenance-aware reporting
+
+## Phase 10 — Publication
+
+- system paper
+- benchmark paper
+- validated discovery case study
+- reproducibility package
+- model/provider disclosure
+- licensing audit
