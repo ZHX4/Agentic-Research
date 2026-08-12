@@ -9,7 +9,6 @@ from rich.table import Table
 
 from agentic_research.gaps import detect_missing_combinations
 from agentic_research.ingestion.jsonl import load_papers
-from agentic_research.schemas import Paper
 
 app = typer.Typer(help="Agentic-Research scientific discovery toolkit.")
 
@@ -27,9 +26,14 @@ def demo() -> None:
     table.add_column("Dataset")
     table.add_column("Confidence", justify="right")
     for gap in gaps:
-        table.add_row(gap.task or "", gap.method or "", gap.dataset or "", f"{gap.confidence:.2f}")
+        table.add_row(
+            gap.task or "",
+            gap.method or "",
+            gap.dataset or "",
+            f"{gap.confidence:.2f}",
+        )
     print(table)
-    print("\\n[dim]These are candidates only; no novelty claim has been made.[/dim]")
+    print("\n[dim]These are candidates only; no novelty claim has been made.[/dim]")
 
 
 @app.command()
@@ -42,7 +46,11 @@ def gaps(
     result = detect_missing_combinations(papers)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
-        json.dumps([item.model_dump(mode="json") for item in result], indent=2, ensure_ascii=False),
+        json.dumps(
+            [item.model_dump(mode="json") for item in result],
+            indent=2,
+            ensure_ascii=False,
+        ),
         encoding="utf-8",
     )
     print(f"Wrote {len(result)} candidate gaps to {output}")
