@@ -24,10 +24,13 @@ class SemanticScholarAdapter(LiteratureRetriever):
         *,
         api_key: str | None = None,
         client: HttpClient | None = None,
+        user_agent: str = "Agentic-Research/0.2 (+https://github.com/ZHX4/Agentic-Research)",
+        timeout_seconds: float = 30.0,
         min_interval_seconds: float = 1.0,
     ) -> None:
         self._client = client or HttpClient(
-            user_agent="Agentic-Research/0.2 (+https://github.com/ZHX4/Agentic-Research)",
+            user_agent=user_agent,
+            timeout_seconds=timeout_seconds,
             rate_limiter=RateLimiter(min_interval_seconds),
             headers={"x-api-key": api_key} if api_key else None,
         )
