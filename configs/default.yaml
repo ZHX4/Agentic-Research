@@ -1,6 +1,6 @@
 project:
   name: Agentic-Research
-  version: 0.8.0
+  version: 0.9.0
 
 research:
   domain: "AI/ML research"
@@ -25,6 +25,7 @@ safety:
   phase7_network_disabled_by_default: true
   phase7_code_hash_required: true
   phase7_dataset_hash_required: true
+  phase8_temporal_benchmark_required: true
 
 providers:
   llm: mock
@@ -102,6 +103,15 @@ phase7:
   pids_limit: 256
   default_seeds: [1, 2, 3]
   output_dir: "artifacts/runs"
+
+phase8:
+  retrieval_k: 10
+  temporal_cutoff_required: true
+  bootstrap_samples: 2000
+  bootstrap_alpha: 0.05
+  require_multi_rater_human_eval: true
+  baseline_metric_direction: higher
+  evaluation_output_dir: "artifacts/evaluation"
 
 storage:
   mode: sqlite-world-model
