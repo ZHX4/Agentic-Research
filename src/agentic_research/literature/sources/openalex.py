@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date
 from typing import Any
 
 from agentic_research.literature.identity import normalize_doi
@@ -21,13 +20,16 @@ class OpenAlexAdapter(LiteratureRetriever):
         *,
         api_key: str,
         client: HttpClient | None = None,
+        user_agent: str = "Agentic-Research/0.2 (+https://github.com/ZHX4/Agentic-Research)",
+        timeout_seconds: float = 30.0,
         min_interval_seconds: float = 0.1,
     ) -> None:
         if not api_key.strip():
             raise ValueError("OpenAlex API key is required")
         self._api_key = api_key.strip()
         self._client = client or HttpClient(
-            user_agent="Agentic-Research/0.2 (+https://github.com/ZHX4/Agentic-Research)",
+            user_agent=user_agent,
+            timeout_seconds=timeout_seconds,
             rate_limiter=RateLimiter(min_interval_seconds),
         )
         self._owns_client = client is None
@@ -49,7 +51,7 @@ class OpenAlexAdapter(LiteratureRetriever):
                 "cursor": cursor,
                 "select": (
                     "id,doi,title,display_name,publication_year,publication_date,"
-                    "authorships,primary_location,open_access,type,cited_by_count"
+                    "authorships,primary_location,open_access,type,cited_by_count,relevance_score"
                 ),
             }
             filters: list[str] = []
@@ -63,9 +65,10 @@ class OpenAlexAdapter(LiteratureRetriever):
                 params["filter"] = ",".join(filters)
 
             payload = self._client.get(_BASE_URL, params=params).json()
-            for raw in payload.get("results", []):
+            raw_results = payload.get("results", [])
+            for raw in raw_results:
                 paper = _paper_from_openalex(raw)
-                if paper.year is not None and _outside_cutoff(paper.year, query):
+                if paper.year is not None and query.temporal_cutoff is not None and paper.year > query.temporal_cutoff:
                     continue
                 results.append(
                     SearchHit(
@@ -78,13 +81,9 @@ class OpenAlexAdapter(LiteratureRetriever):
                 if len(results) >= requested:
                     break
             cursor = payload.get("meta", {}).get("next_cursor")
-            if not payload.get("results"):
+            if not raw_results:
                 break
         return results
-
-
-def _outside_cutoff(year: int, query: SearchQuery) -> bool:
-    return query.temporal_cutoff is not None and year > query.temporal_cutoff
 
 
 def _paper_from_openalex(raw: dict[str, Any]) -> Paper:
@@ -96,14 +95,15 @@ def _paper_from_openalex(raw: dict[str, Any]) -> Paper:
     primary_location = raw.get("primary_location") or {}
     landing_page = primary_location.get("landing_page_url")
     source_id = raw.get("id")
+    source_key = source_id.split("/")[-1] if isinstance(source_id, str) else str(source_id or "")
     metadata = {
-        "source_ids": {"openalex": source_id.split("/")[-1] if isinstance(source_id, str) else ""},
+        "source_ids": {"openalex": source_key},
         "open_access": raw.get("open_access") or {},
         "type": raw.get("type"),
         "citation_count": raw.get("cited_by_count", 0),
     }
     return Paper(
-        paper_id=str(source_id).split("/")[-1] if isinstance(source_id, str) else str(raw.get("id", "")),
+        paper_id=source_key,
         title=str(raw.get("display_name") or raw.get("title") or "").strip(),
         year=raw.get("publication_year"),
         doi=normalize_doi(raw.get("doi")),
