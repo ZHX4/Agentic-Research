@@ -44,6 +44,26 @@ class PriorWorkMatch(BaseModel):
     rationale: str = Field(min_length=1)
 
 
+class DeepEvidenceCheck(BaseModel):
+    """Full-text evidence check for a high-priority prior-work candidate."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    check_id: str = Field(min_length=1)
+    paper_id: str = Field(min_length=1)
+    source: str = Field(min_length=1)
+    attempted: bool
+    status: Literal["exact", "not_found", "unavailable", "failed"]
+    media_type: Literal["application/pdf", "text/html", "unknown"]
+    method_found: bool = False
+    dataset_found: bool = False
+    task_found: bool = False
+    same_context_found: bool = False
+    local_path: str | None = None
+    sha256: str | None = None
+    rationale: str = Field(min_length=1)
+
+
 class Counterevidence(BaseModel):
     """Evidence discovered specifically to attack a candidate gap."""
 
@@ -74,6 +94,10 @@ class NoveltyVerificationConfig(BaseModel):
     include_local: bool = True
     include_external: bool = True
     allow_status_transition: bool = True
+    deep_verify: bool = True
+    max_deep_verifications: int = Field(default=5, ge=0, le=25)
+    require_deep_verification_for_supported: bool = True
+    deep_verification_similarity_floor: float = Field(default=0.45, ge=0, le=1)
 
     @model_validator(mode="after")
     def validate_thresholds(self) -> "NoveltyVerificationConfig":
@@ -81,6 +105,8 @@ class NoveltyVerificationConfig(BaseModel):
             raise ValueError("near_match_similarity must be <= min_direct_similarity")
         if not self.include_local and not self.include_external:
             raise ValueError("At least one search source must be enabled")
+        if self.deep_verify and self.max_deep_verifications < 1:
+            raise ValueError("max_deep_verifications must be positive when deep verification is enabled")
         return self
 
 
@@ -98,6 +124,7 @@ class GapVerificationResult(BaseModel):
     confidence: float = Field(ge=0, le=1)
     query_probes: list[SearchProbe] = Field(default_factory=list)
     prior_work: list[PriorWorkMatch] = Field(default_factory=list)
+    deep_evidence: list[DeepEvidenceCheck] = Field(default_factory=list)
     counterevidence: list[Counterevidence] = Field(default_factory=list)
     nearest_prior_work_ids: list[str] = Field(default_factory=list)
     searched_sources: list[str] = Field(default_factory=list)
