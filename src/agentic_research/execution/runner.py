@@ -27,13 +27,15 @@ def _aggregate_metrics(seed_runs: list[SeedRun]) -> list[MetricRecord]:
 def _parse_metrics(run: SeedRun, artifact_dir: Path) -> SeedRun:
     metrics_file = artifact_dir / "metrics.json"
     if not metrics_file.is_file():
-        return run
+        return run.model_copy(update={"status": "failed", "error": "Required metrics.json was not produced by the experiment"})
     try:
         payload = json.loads(metrics_file.read_text(encoding="utf-8"))
+        if not isinstance(payload, list) or not payload:
+            raise ValueError("metrics.json must contain a non-empty JSON array")
         records = [MetricRecord(name=str(item["name"]), value=float(item["value"]), seed=run.seed, split=str(item.get("split", "test"))) for item in payload]
         return run.model_copy(update={"metrics": records})
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        return run.model_copy(update={"error": f"Invalid metrics.json: {exc}"})
+        return run.model_copy(update={"status": "failed", "error": f"Invalid metrics.json: {exc}"})
 
 
 def _rejected_runs(spec: ExperimentSpec, message: str) -> list[SeedRun]:
