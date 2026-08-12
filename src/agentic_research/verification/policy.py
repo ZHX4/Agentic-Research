@@ -14,13 +14,24 @@ def _world_key(value: str) -> str:
 class AdversarialNoveltyVerifier(NoveltyVerifier):
     """Apply conservative decision rules to Phase 5 retrieval evidence."""
 
-    def _local_exact_matches(self, candidate: GapCandidate, paper_ids: set[str]) -> set[str]:
-        if self.world is None or not paper_ids:
+    def _local_exact_matches(self, candidate: GapCandidate, temporal_cutoff: int | None) -> set[str]:
+        if self.world is None:
             return set()
         candidate_method = _world_key(candidate.method or "")
         candidate_dataset = _world_key(candidate.dataset or "")
         candidate_task = _world_key(candidate.task or "")
         if not (candidate_method or candidate_dataset or candidate_task):
+            return set()
+
+        if temporal_cutoff is None:
+            paper_rows = self.world.connection.execute("SELECT paper_id FROM papers ORDER BY paper_id").fetchall()
+        else:
+            paper_rows = self.world.connection.execute(
+                "SELECT paper_id FROM papers WHERE year IS NOT NULL AND year <= ? ORDER BY paper_id",
+                (temporal_cutoff,),
+            ).fetchall()
+        paper_ids = {str(row["paper_id"]) for row in paper_rows}
+        if not paper_ids:
             return set()
 
         methods: dict[str, set[str]] = {paper_id: set() for paper_id in paper_ids}
@@ -77,14 +88,11 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
                 }
             )
 
-        prior_ids = {
-            match.paper.paper_id
-            for match in result.prior_work
-            if match.source in {"local-world-model", "local"}
-        }
-        local_exact = self._local_exact_matches(candidate, prior_ids)
+        local_exact = self._local_exact_matches(candidate, cfg.temporal_cutoff) if cfg.include_local else set()
         adjusted_matches = []
         exact_ids = set()
+        existing_match_ids = {match.paper.paper_id for match in result.prior_work}
+
         for match in result.prior_work:
             if match.paper.paper_id in local_exact:
                 adjusted = match.model_copy(
@@ -100,13 +108,31 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
             else:
                 adjusted_matches.append(match)
 
+        # Graph-level exact matches can be authoritative even when lexical retrieval did not surface the paper.
+        missing_graph_matches = sorted(local_exact - existing_match_ids)
+        for paper_id in missing_graph_matches:
+            if self.world is None:
+                continue
+            row = self.world.connection.execute(
+                "SELECT paper_id,title,year,source,doi,arxiv_id,metadata_json FROM papers WHERE paper_id = ?",
+                (paper_id,),
+            ).fetchone()
+            if row is None:
+                continue
+            paper = self._paper_from_row(row)
+            adjusted_matches.append(
+                self._graph_prior_match(candidate, paper)
+            )
+            exact_ids.add(paper_id)
+
+        adjusted_matches.sort(key=lambda item: (-item.similarity, item.paper.paper_id))
         if not exact_ids:
-            return result
+            return result.model_copy(update={"prior_work": adjusted_matches[:25]})
 
         counterevidence = list(result.counterevidence)
-        existing = {item.paper_id for item in counterevidence}
+        existing_counter = {item.paper_id for item in counterevidence}
         for paper_id in sorted(exact_ids):
-            if paper_id not in existing:
+            if paper_id not in existing_counter:
                 counterevidence.append(
                     Counterevidence(
                         counterevidence_id=f"counter:{candidate.gap_id}:{paper_id}",
@@ -141,4 +167,22 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
                 "rationale": "The local scientific world model explicitly contains the candidate combination; the candidate gap is therefore disproved within the indexed corpus.",
                 "verified_candidate": verified,
             }
+        )
+
+    def _graph_prior_match(self, candidate: GapCandidate, paper):
+        from agentic_research.schemas.phase5 import PriorWorkMatch
+
+        return PriorWorkMatch(
+            match_id=f"match:{candidate.gap_id}:{paper.paper_id}",
+            paper=paper,
+            source="local-world-model",
+            query="local-world-model graph exact-combination check",
+            similarity=1.0,
+            method_overlap=1.0 if candidate.method else 0.0,
+            dataset_overlap=1.0 if candidate.dataset else 0.0,
+            task_overlap=1.0 if candidate.task else 0.0,
+            title_overlap=0.0,
+            exact_combination=True,
+            challenge_type="direct",
+            rationale="Exact candidate entity combination found by direct graph inspection, independent of lexical chunk retrieval.",
         )
