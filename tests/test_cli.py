@@ -6,12 +6,11 @@ from agentic_research.cli import app
 runner = CliRunner()
 
 
-def test_cli_help_exposes_phase1_commands() -> None:
+def test_cli_help_exposes_phase_commands() -> None:
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    assert "search" in result.stdout
-    assert "acquire" in result.stdout
-    assert "parse" in result.stdout
+    for command in ["search", "acquire", "parse", "analyze", "calibrate", "fit-calibrator"]:
+        assert command in result.stdout
 
 
 def test_cli_demo_is_offline() -> None:
