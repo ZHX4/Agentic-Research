@@ -19,6 +19,7 @@ from .phase3 import RetrievalFilters, RetrievalHit, RetrievalResponse, Traversal
 from .phase4 import GapDiscoveryConfig, GapDiscoveryResult, GapSignal
 from .phase5 import (
     Counterevidence,
+    DeepEvidenceCheck,
     GapVerificationResult,
     NoveltyVerificationConfig,
     NoveltyVerificationReport,
@@ -55,6 +56,7 @@ __all__ = [
     "GapSignal",
     "SearchProbe",
     "PriorWorkMatch",
+    "DeepEvidenceCheck",
     "Counterevidence",
     "NoveltyVerificationConfig",
     "GapVerificationResult",
