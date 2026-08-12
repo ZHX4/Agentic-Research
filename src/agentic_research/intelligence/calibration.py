@@ -34,12 +34,16 @@ class CalibrationReport(BaseModel):
     bins: list[CalibrationBin] = Field(default_factory=list)
 
 
-@dataclass
-class IsotonicCalibrator:
-    """Monotone piecewise-constant calibration fitted by PAVA.
+class IsotonicModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
-    Training requires labeled examples; no labels are invented from the paper.
-    """
+    thresholds: list[float] = Field(min_length=1)
+    values: list[float] = Field(min_length=1)
+
+
+@dataclass(frozen=True)
+class IsotonicCalibrator:
+    """Monotone piecewise-constant calibration fitted by PAVA."""
 
     thresholds: list[float]
     values: list[float]
@@ -49,21 +53,35 @@ class IsotonicCalibrator:
         if not examples:
             raise ValueError("At least one labeled calibration example is required")
         ordered = sorted(examples, key=lambda item: item.raw_confidence)
-        blocks: list[list[float]] = [[item.raw_confidence, item.raw_confidence, 1.0 if item.correct else 0.0, 1.0] for item in ordered]
+        blocks: list[list[float]] = [
+            [item.raw_confidence, item.raw_confidence, 1.0 if item.correct else 0.0, 1.0]
+            for item in ordered
+        ]
         index = 0
         while index < len(blocks) - 1:
             if blocks[index][2] <= blocks[index + 1][2]:
                 index += 1
                 continue
-            left = blocks[index]
-            right = blocks[index + 1]
+            left, right = blocks[index], blocks[index + 1]
             count = left[3] + right[3]
             merged = [left[0], right[1], (left[2] * left[3] + right[2] * right[3]) / count, count]
             blocks[index:index + 2] = [merged]
             index = max(index - 1, 0)
-        thresholds = [block[1] for block in blocks]
-        values = [max(0.0, min(1.0, block[2])) for block in blocks]
-        return cls(thresholds=thresholds, values=values)
+        return cls(
+            thresholds=[block[1] for block in blocks],
+            values=[max(0.0, min(1.0, block[2])) for block in blocks],
+        )
+
+    @classmethod
+    def from_model(cls, model: IsotonicModel) -> "IsotonicCalibrator":
+        if len(model.thresholds) != len(model.values) or not model.thresholds:
+            raise ValueError("thresholds and values must have the same non-zero length")
+        if model.thresholds != sorted(model.thresholds):
+            raise ValueError("thresholds must be sorted")
+        return cls(thresholds=list(model.thresholds), values=list(model.values))
+
+    def to_model(self) -> IsotonicModel:
+        return IsotonicModel(thresholds=list(self.thresholds), values=list(self.values))
 
     def transform(self, raw_confidence: float) -> float:
         if not 0 <= raw_confidence <= 1:
