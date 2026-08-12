@@ -33,7 +33,7 @@ Every experiment records:
 - planned code path and SHA-256;
 - dataset manifests, versions, and SHA-256 hashes;
 - seeds;
-- primary metric;
+- primary metric and direction (`higher` or `lower`);
 - explicit null hypothesis and rejection criteria;
 - sandbox policy;
 - container image fingerprint;
@@ -76,13 +76,15 @@ The executor records the seed automatically. Malformed or missing metrics do not
 
 ## Falsification
 
-Phase 7 applies only the prespecified rejection criteria. It does not infer causal truth from an observed score and does not turn a successful run into proof of the hypothesis.
+Phase 7 applies only operationalized prespecified criteria. When `minimum_effect_size` is provided, the configured metric direction is applied (`higher` rejects when the observed value remains below the threshold; `lower` rejects when it remains above it). When no operational threshold is provided, the system reports `inconclusive` rather than pretending that free-form rejection text can be evaluated statistically.
 
 A falsified result requires an explicit rationale. If all seeds do not succeed, falsification remains undecided rather than being inferred from partial failure.
 
 ## Experiment search tree
 
 Every planned experiment can start a tree. Results can be appended as replication, mutation, ablation, or branch nodes. Parent and terminal node references are schema-validated.
+
+The CLI accepts an existing tree explicitly with `--base-tree` when extending it.
 
 ## CLI
 
@@ -96,6 +98,7 @@ agentic-research-execution plan \
   --command python \
   --command run.py \
   --primary-metric accuracy \
+  --metric-direction higher \
   --output artifacts/experiment.json
 ```
 
@@ -109,12 +112,23 @@ agentic-research-execution execute \
   --result artifacts/results/experiment.json
 ```
 
-Create/extend the tree:
+Create a tree:
 
 ```bash
 agentic-research-execution tree \
   --spec artifacts/experiment.json \
   --output artifacts/results/experiment.tree.json
+```
+
+Extend a tree with a result:
+
+```bash
+agentic-research-execution tree \
+  --spec artifacts/experiment.json \
+  --base-tree artifacts/results/experiment.tree.json \
+  --result artifacts/results/experiment-result.json \
+  --relation replication \
+  --output artifacts/results/experiment.tree.updated.json
 ```
 
 ## Scientific boundary
