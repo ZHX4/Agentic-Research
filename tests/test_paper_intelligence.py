@@ -61,10 +61,13 @@ def test_author_year_citation_edges() -> None:
     paper = Paper(paper_id="p1", title="Paper")
     refs_text = "[1] Smith, J. Retrieval Methods. 2024. doi:10.1234/SMITH"
     refs = extract_references(paper, refs_text)
-    chunk = TextChunk(chunk_id="c1", paper_id="p1", text="Prior work (Smith, 2024) supports this result.")
-    edges = extract_citation_edges(paper, [chunk], refs)
-    assert len(edges) == 1
-    assert edges[0].cited_paper_id == "doi:10.1234/smith"
+    chunks = [
+        TextChunk(chunk_id="c1", paper_id="p1", text="Prior work (Smith, 2024) supports this result."),
+        TextChunk(chunk_id="c2", paper_id="p1", text="Smith et al. 2024 introduced the method."),
+    ]
+    edges = extract_citation_edges(paper, chunks, refs)
+    assert len(edges) == 2
+    assert all(edge.cited_paper_id == "doi:10.1234/smith" for edge in edges)
 
 
 def test_confidence_calibrator_is_monotonic() -> None:
@@ -88,23 +91,8 @@ def test_structured_extraction_rejects_broken_evidence_link() -> None:
         StructuredExtraction(
             extraction_id="e1",
             paper_id="p1",
-            evidence=[
-                Evidence(
-                    evidence_id="ev1",
-                    paper_id="p1",
-                    claim="claim",
-                    confidence=0.5,
-                )
-            ],
-            claim_links=[
-                ClaimEvidenceLink(
-                    link_id="l1",
-                    claim_id="missing-claim",
-                    evidence_id="ev1",
-                    relation="supports",
-                    confidence=0.5,
-                )
-            ],
+            evidence=[Evidence(evidence_id="ev1", paper_id="p1", claim="claim", confidence=0.5)],
+            claim_links=[ClaimEvidenceLink(link_id="l1", claim_id="missing-claim", evidence_id="ev1", relation="supports", confidence=0.5)],
             extractor_version="test",
         )
 
