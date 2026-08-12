@@ -1,7 +1,7 @@
 from pathlib import Path
+import hashlib
 import sqlite3
 import struct
-import hashlib
 
 import pytest
 
@@ -81,6 +81,22 @@ def test_metadata_filters_apply_to_lexical_and_dense(tmp_path: Path) -> None:
             response = retriever.search("retrieval", filters=filters, mode=mode, limit=10)
             assert response.hits
             assert {hit.paper_id for hit in response.hits} == {"b"}
+
+
+def test_unicode_lexical_retrieval(tmp_path: Path) -> None:
+    db = tmp_path / "world.sqlite"
+    paper = _paper("ar", "Arabic retrieval", 2024, "test")
+    with ScientificWorldModel(db) as world:
+        index_extraction(world, paper, _extraction(paper, ["استرجاع المعلومات يحسن الدقة."]))
+        rows = world.lexical_search("استرجاع المعلومات", limit=5)
+    assert rows
+    assert rows[0]["paper_id"] == "ar"
+
+
+def test_candidate_limit_cannot_be_smaller_than_limit(tmp_path: Path) -> None:
+    with ScientificWorldModel(tmp_path / "world.sqlite") as world:
+        with pytest.raises(ValueError, match="candidate_limit"):
+            HybridRetriever(world).search("retrieval", mode="lexical", limit=10, candidate_limit=5)
 
 
 def test_embedding_model_isolation(tmp_path: Path) -> None:
