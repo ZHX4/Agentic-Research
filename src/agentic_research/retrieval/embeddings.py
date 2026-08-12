@@ -1,5 +1,7 @@
 """Embedding providers used by dense and hybrid scientific retrieval."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 import hashlib
 import math
