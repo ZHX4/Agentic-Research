@@ -2,7 +2,7 @@
 
 An evidence-grounded research-agent system for scientific literature intelligence, gap discovery, adversarial novelty verification, hypothesis generation, and eventually reproducible experimental validation.
 
-> **Status:** Phase 4 implemented. Phase 0, Phase 1, Phase 2, Phase 3, and Phase 4 are complete; Phase 5 has not started.
+> **Status:** Phase 5 implemented. Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, and Phase 5 are complete; Phase 6 has not started.
 
 ## Research objective
 
@@ -58,10 +58,13 @@ Phase 4 Gap Discovery
   - graph negative-space signals
       |
       v
-Devil's Advocate (future)
-      |
-      v
-Novelty Verification (future)
+Phase 5 Adversarial Verification
+  - Devil's Advocate
+  - query expansion
+  - broader literature search
+  - nearest-prior-work comparison
+  - counterevidence registry
+  - novelty uncertainty
       |
       v
 Hypothesis Factory (future)
@@ -73,26 +76,28 @@ Experiment Planner / Sandbox (future)
 Independent Review / Paper (future)
 ```
 
-## Phase 4: deterministic gap discovery
+## Phase 5: adversarial novelty verification
 
-Run candidate discovery against an indexed Phase 3 world model:
-
-```bash
-python -m agentic_research.cli discover-gaps \
-  --database artifacts/world-model.sqlite \
-  --output artifacts/gap-discovery.json
-```
-
-For historical evaluation:
+Verify Phase 4 candidates against the local indexed world model and configured scholarly providers:
 
 ```bash
-python -m agentic_research.cli discover-gaps \
-  --database artifacts/world-model.sqlite \
-  --output artifacts/gaps-2022.json \
-  --temporal-cutoff 2022
+agentic-research-verify verify-gaps \
+  --input artifacts/gap-discovery.json \
+  --output artifacts/novelty-report.json \
+  --database artifacts/world-model.sqlite
 ```
 
-Phase 4 produces **candidate gaps only**. It does not claim that a gap is globally novel or that it is scientifically valuable. Phase 5 performs broader search, counterevidence analysis, and novelty verification.
+For a deterministic local-only verification:
+
+```bash
+agentic-research-verify verify-gaps \
+  --input artifacts/gap-discovery.json \
+  --output artifacts/novelty-report.json \
+  --database artifacts/world-model.sqlite \
+  --no-external
+```
+
+Phase 5 distinguishes `disproved`, `weakened`, `supported`, and `inconclusive`. `supported` means the candidate survived the configured verification budget; it does **not** mean globally proven novel.
 
 ## Scientific integrity rules
 
@@ -108,7 +113,9 @@ Phase 4 produces **candidate gaps only**. It does not claim that a gap is global
 10. Vectors from different embedding models are isolated and never compared.
 11. Citation targets are never guessed; unresolved citations retain their reference provenance.
 12. Phase 4 candidates are corpus-relative structural signals, not novelty claims.
-13. Phase 4 never changes a candidate to `survived`, `weakened`, `disproved`, or `uncertain`; those transitions belong to Phase 5.
+13. Phase 5 treats failed or empty search as uncertainty, never proof of novelty.
+14. Temporal cutoffs exclude future papers and unknown-year papers during historical verification.
+15. Phase 5 transitions are reversible only through explicit later research-state logic; no hypothesis generation occurs here.
 
 ## Repository layout
 
@@ -122,9 +129,10 @@ src/agentic_research/
   ingestion/     deterministic local corpus ingestion
   retrieval/     provider contracts, embeddings, hybrid retrieval, reranking
   gaps/          deterministic candidate-gap discovery
+  verification/  Devil's Advocate + adversarial novelty verification
   agents/        agent contracts
   evaluation/    benchmark and metric contracts
-  cli.py         command-line entry point
+  cli.py         Phase 0–4 command-line entry point
 
 docs/            architecture, methodology, roadmap, phase gates
 tests/           unit and offline integration/smoke tests
@@ -161,9 +169,10 @@ pip install -e '.[embeddings]'
 - [x] [Phase 2 acceptance gate](docs/phase-2.md)
 - [x] [Phase 3 acceptance gate](docs/phase-3.md)
 - [x] [Phase 4 acceptance gate](docs/phase-4.md)
-- [ ] Phase 5 acceptance gate
+- [x] [Phase 5 acceptance gate](docs/phase-5.md)
+- [ ] Phase 6 acceptance gate
 
-See `docs/phase-4-checklist.md` for the Phase 4 implementation checklist.
+See `docs/phase-5-checklist.md` for the Phase 5 implementation checklist.
 
 ## Roadmap
 
@@ -172,7 +181,7 @@ See `docs/phase-4-checklist.md` for the Phase 4 implementation checklist.
 - [x] Phase 2 evidence-grounded paper intelligence
 - [x] Phase 3 retrieval and scientific world model
 - [x] Phase 4 gap discovery
-- [ ] Phase 5 adversarial novelty
+- [x] Phase 5 adversarial novelty verification
 - [ ] Phase 6 hypothesis reasoning
 - [ ] Phase 7 scientific execution
 - [ ] Phase 8 evaluation
