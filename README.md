@@ -1,8 +1,8 @@
 # Agentic-Research
 
-An evidence-grounded research agent for scientific gap discovery, adversarial novelty verification, hypothesis generation, and eventually reproducible experimental validation.
+An evidence-grounded research-agent foundation for scientific gap discovery, adversarial novelty verification, hypothesis generation, and eventually reproducible experimental validation.
 
-> **Status:** Foundation / MVP-0. The repository starts intentionally small and modular. The architecture is designed to evolve into an autonomous research system without coupling the project to a single LLM, search provider, vector database, or orchestration framework.
+> **Status:** Phase 0 foundation implemented. Phase 1 has not started. Phase 0 deliberately stops before network retrieval, full-text parsing, novelty verification, and autonomous experiment execution.
 
 ## Research objective
 
@@ -12,7 +12,7 @@ The core research question is:
 
 The initial research domain is **AI/ML research**, with early emphasis on **LLM systems** (reasoning, retrieval/RAG, memory, long context, efficiency, evaluation, and tool use).
 
-## Architecture
+## Architecture target
 
 ```text
 Research Goal
@@ -59,6 +59,8 @@ Independent Review
 Traceable Research Report / Paper
 ```
 
+Only the foundation through deterministic local candidate-gap discovery is implemented in Phase 0.
+
 ## Repository layout
 
 ```text
@@ -68,14 +70,14 @@ src/agentic_research/
   ingestion/     corpus ingestion adapters
   retrieval/     retrieval interfaces
   gaps/          candidate-gap detection
-  agents/        agent contracts and orchestration interfaces
+  agents/        agent contracts
   evaluation/    benchmark and metric contracts
   cli.py         command-line entry point
 
-docs/            research and architecture documentation
+docs/            architecture, methodology, roadmap, Phase 0 acceptance
+tests/           unit and smoke tests
 configs/         reproducible configuration
-data/            local demo/processed data (not production corpora)
-tests/            unit tests
+data/            deterministic demo data only
 ```
 
 ## Quick start
@@ -94,22 +96,18 @@ pip install -e .[dev]
 
 python -m agentic_research.cli --help
 python -m agentic_research.cli demo
+python -m agentic_research.cli validate --input data/demo/papers.jsonl
 python -m agentic_research.cli gaps --input data/demo/papers.jsonl --output artifacts/demo/gaps.json
 ```
 
 The demo pipeline is deterministic and does **not** require API keys.
 
-## Configuration
-
-Copy `.env.example` to `.env` when external providers are added. Never commit credentials.
-
-Configuration is intentionally provider-agnostic. Future providers implement interfaces rather than leaking SDK-specific types through the core domain model.
-
-## Development
+## Development checks
 
 ```bash
 ruff check .
 ruff format --check .
+mypy src tests
 pytest -q
 ```
 
@@ -121,11 +119,15 @@ pytest -q
 4. LLM self-evaluation is not accepted as sole evidence of novelty.
 5. Generated code must run inside an isolated sandbox before untrusted execution is enabled.
 6. Negative and null results are first-class research artifacts.
-7. Every research run records its model, configuration, dataset manifest, code revision, and seed.
+7. Research runs must record configuration, dataset manifests, model identifiers, code revision, and seeds once those providers are enabled.
+
+## Phase 0 acceptance
+
+See [`docs/phase-0.md`](docs/phase-0.md) for the complete acceptance gate and [`docs/phase-0-checklist.md`](docs/phase-0-checklist.md) for the implementation checklist.
 
 ## Roadmap
 
-- [x] Foundation package and schemas
+- [x] Phase 0 foundation package and schemas
 - [x] Deterministic local corpus ingestion
 - [x] First candidate-gap detector
 - [x] CLI and developer tooling
