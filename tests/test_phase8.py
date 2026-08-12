@@ -11,6 +11,7 @@ from agentic_research.evaluation.engine import evaluate_extraction, evaluate_lab
 from agentic_research.evaluation.human import evaluate_human_ratings
 from agentic_research.evaluation.metrics import average_precision_at_k, bootstrap_mean_ci, cohen_kappa, macro_field_f1, ndcg_at_k, temporal_leakage
 from agentic_research.evaluation.report import build_report
+from agentic_research.evaluation.validation import validate_split_disjointness
 from agentic_research.schemas.phase8 import AblationSpec, BenchmarkCase, BenchmarkResult, CostRecord, HumanRating, PredictionRecord
 
 
@@ -18,8 +19,8 @@ def h(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
-def retrieval_case(case_id: str = "c1") -> BenchmarkCase:
-    return BenchmarkCase(case_id=case_id, kind="retrieval", input_hash=h(case_id), expected_ids=["a", "b"])
+def retrieval_case(case_id: str = "c1", input_value: str | None = None) -> BenchmarkCase:
+    return BenchmarkCase(case_id=case_id, kind="retrieval", input_hash=h(input_value or case_id), expected_ids=["a", "b"])
 
 
 def test_retrieval_metrics_are_correct() -> None:
@@ -59,6 +60,13 @@ def test_temporal_benchmark_detects_leakage_and_unknown_rate() -> None:
     assert metric_map["unknown_year_rate"] == pytest.approx(1 / 3)
     assert result.warnings
     assert temporal_leakage(prediction.publication_years, 2020)["leakage_rate"] == pytest.approx(1 / 3)
+
+
+def test_split_integrity_rejects_cross_split_input_overlap() -> None:
+    train = retrieval_case("train-1", input_value="shared")
+    test = retrieval_case("test-1", input_value="shared")
+    with pytest.raises(ValueError):
+        validate_split_disjointness({"train": [train], "test": [test]})
 
 
 def test_human_agreement_requires_two_annotators() -> None:
