@@ -9,6 +9,7 @@ from .phase4 import GapDiscoveryConfig, GapDiscoveryResult, GapSignal
 from .phase5 import Counterevidence, GapVerificationResult, NoveltyVerificationConfig, NoveltyVerificationReport, PriorWorkMatch, SearchProbe
 from .phase6 import Hypothesis, HypothesisCandidate, HypothesisConfig, HypothesisReflection, HypothesisRun
 from .phase7 import ArtifactRecord, DatasetManifest, ExperimentNode, ExperimentResult, ExperimentSearchTree, ExperimentSpec, FalsificationPlan, MetricRecord, SandboxPolicy, SeedRun
+from .phase8 import AblationResult, AblationSpec, BaselineComparison, BaselineSpec, BenchmarkCase, BenchmarkResult, CostRecord, HumanEvaluationResult, HumanRating, MetricValue, PredictionRecord, EvaluationReport
 
 __all__ = [
     "Paper", "Evidence", "GapCandidate", "GapStatus", "ExperimentPlan",
@@ -17,5 +18,7 @@ __all__ = [
     "WorldNode", "WorldEdge", "TraversalResult", "GapDiscoveryConfig", "GapDiscoveryResult", "GapSignal",
     "SearchProbe", "PriorWorkMatch", "Counterevidence", "NoveltyVerificationConfig", "GapVerificationResult", "NoveltyVerificationReport",
     "Hypothesis", "HypothesisCandidate", "HypothesisReflection", "HypothesisConfig", "HypothesisRun",
-    "DatasetManifest", "FalsificationPlan", "SandboxPolicy", "ExperimentSpec", "MetricRecord", "ArtifactRecord", "SeedRun", "ExperimentResult", "ExperimentNode", "ExperimentSearchTree",
+    "DatasetManifest", "FalsificationPlan", "SandboxPolicy", "ExperimentSpec", "MetricValue", "ArtifactRecord", "SeedRun", "ExperimentResult", "ExperimentNode", "ExperimentSearchTree",
+    "BenchmarkCase", "PredictionRecord", "MetricValue", "BenchmarkResult", "HumanRating", "HumanEvaluationResult",
+    "BaselineSpec", "BaselineComparison", "AblationSpec", "AblationResult", "CostRecord", "EvaluationReport",
 ]
