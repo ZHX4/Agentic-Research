@@ -30,6 +30,16 @@ Phase 2
       -> Structured candidate fields
       -> Claims + Evidence
       -> Confidence calibration
+
+Phase 3
+  Phase 2 StructuredExtraction
+      -> SQLite scientific world model
+      -> FTS5/BM25 lexical retrieval
+      -> Embedding provider + dense retrieval
+      -> RRF hybrid fusion
+      -> Metadata / temporal filtering
+      -> Reranking
+      -> Directional citation traversal
 ```
 
 ## Target architecture
@@ -68,19 +78,34 @@ ResearchGoal
 - Long-running state belongs in a durable run state store, not in chat history.
 - Experiment execution must be isolated from the host.
 - Every major decision receives a provenance link.
+- Hybrid retrieval never combines incomparable lexical and dense raw scores; it fuses ranked lists with Reciprocal Rank Fusion.
+- Dense vectors are isolated by exact embedding-model identity.
 
-## Planned storage split
+## Phase 3 storage
+
+Phase 3 uses a local SQLite world model as the canonical research-development implementation. It contains:
+
+- paper metadata;
+- structured nodes for sections, chunks, claims, evidence, references, authors, methods, datasets, metrics, baselines, and tasks;
+- typed relationship edges;
+- FTS5 lexical index;
+- float32 embeddings with model identity;
+- enough information to reproduce retrieval results from the stored corpus.
+
+The design keeps persistence behind a replaceable interface so a later production deployment can move the same logical model to PostgreSQL/pgvector or a dedicated graph store without changing scientific contracts.
+
+## Planned production storage
 
 - PostgreSQL: canonical metadata, runs, hypotheses, experiments, provenance.
-- pgvector: semantic retrieval where appropriate (Phase 3).
-- Graph store: scientific relationships and traversal (Phase 3+).
+- pgvector: high-scale semantic retrieval where appropriate.
+- Graph store: high-scale scientific relationships and traversal when SQLite is no longer sufficient.
 - Object storage: PDFs, tables, figures, logs, experiment artifacts.
 - Redis: queues, short-lived locks, and distributed rate-limit state when needed.
 
-## Current Phase 2 limitations
+## Current Phase 3 limitations
 
-- No OCR for scanned/image-only PDFs.
-- Citation resolution is deterministic and conservative; unusual citation styles may remain unresolved.
-- Table/figure extraction can miss complex layouts.
-- Candidate entity extraction is heuristic and must not be treated as scientific truth.
-- Confidence calibration requires labeled examples collected outside the extractor.
+- SQLite dense retrieval is a vector scan rather than an ANN index; this is deliberate for the first reproducible implementation.
+- The hash embedding provider is a deterministic baseline, not a semantic model.
+- SentenceTransformers and CrossEncoder are optional model-backed providers.
+- Citation traversal only uses relationships available in the indexed Phase 2 corpus; external citation expansion remains future work.
+- No gap discovery, contradiction analysis, novelty verification, hypothesis reasoning, or experiment execution occurs in Phase 3.
