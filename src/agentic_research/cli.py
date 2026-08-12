@@ -11,11 +11,14 @@ from rich.table import Table
 
 from agentic_research.gaps import detect_missing_combinations
 from agentic_research.ingestion.jsonl import load_papers
+from agentic_research.intelligence.calibration import CalibrationExample, calibration_report
+from agentic_research.intelligence.pipeline import extract_paper_intelligence
 from agentic_research.literature.factory import build_literature_service
 from agentic_research.literature.fulltext import FullTextAcquirer, FullTextManifest, parse_full_text
 from agentic_research.literature.settings import LiteratureSettings
 from agentic_research.literature.transport import HttpClient, RateLimiter
 from agentic_research.retrieval.contracts import SearchQuery
+from agentic_research.schemas import Paper
 from agentic_research.storage.jsonl import JsonlStore
 
 app = typer.Typer(help="Agentic-Research scientific discovery toolkit.")
@@ -27,19 +30,13 @@ def demo() -> None:
     path = Path("data/demo/papers.jsonl")
     papers = list(load_papers(path))
     gaps = detect_missing_combinations(papers)
-
     table = Table(title="Candidate research gaps")
     table.add_column("Task")
     table.add_column("Method")
     table.add_column("Dataset")
     table.add_column("Confidence", justify="right")
     for gap in gaps:
-        table.add_row(
-            gap.task or "",
-            gap.method or "",
-            gap.dataset or "",
-            f"{gap.confidence:.2f}",
-        )
+        table.add_row(gap.task or "", gap.method or "", gap.dataset or "", f"{gap.confidence:.2f}")
     print(table)
     print("\n[dim]These are candidates only; no novelty claim has been made.[/dim]")
 
@@ -53,10 +50,7 @@ def gaps(
     papers = list(load_papers(input))
     result = detect_missing_combinations(papers)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(
-        json.dumps([item.model_dump(mode="json") for item in result], indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    output.write_text(json.dumps([item.model_dump(mode="json") for item in result], indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"Wrote {len(result)} candidate gaps to {output}")
 
 
@@ -77,22 +71,11 @@ def literature_search(
     output: Path | None = typer.Option(None, help="Optional JSON output path."),
 ) -> None:
     """Search configured scholarly sources and deduplicate the results."""
-    query = SearchQuery(
-        text=text,
-        limit=limit,
-        year_from=year_from,
-        year_to=year_to,
-        temporal_cutoff=temporal_cutoff,
-    )
+    query = SearchQuery(text=text, limit=limit, year_from=year_from, year_to=year_to, temporal_cutoff=temporal_cutoff)
     with build_literature_service(LiteratureSettings()) as service:
         hits = service.search(query)
     payload = [
-        {
-            "source": hit.source,
-            "score": hit.score,
-            "retrieval_reason": hit.retrieval_reason,
-            "paper": hit.paper.model_dump(mode="json"),
-        }
+        {"source": hit.source, "score": hit.score, "retrieval_reason": hit.retrieval_reason, "paper": hit.paper.model_dump(mode="json")}
         for hit in hits
     ]
     if output:
@@ -152,10 +135,40 @@ def parse(
         for item in manifests:
             if item.status != "downloaded":
                 continue
-            document = parse_full_text(item)
-            handle.write(document.model_dump_json() + "\n")
+            handle.write(parse_full_text(item).model_dump_json() + "\n")
             count += 1
     print(f"Parsed {count} documents into {output}")
+
+
+@app.command()
+def analyze(
+    paper: Path = typer.Option(..., exists=True, readable=True, help="JSON file containing one canonical Paper."),
+    pdf: Path = typer.Option(..., exists=True, readable=True, help="PDF file to analyze."),
+    output: Path = typer.Option(..., help="Output JSON containing the enriched Paper and StructuredExtraction."),
+) -> None:
+    """Run the deterministic Phase 2 paper-intelligence pipeline on one PDF."""
+    paper_obj = Paper.model_validate_json(paper.read_text(encoding="utf-8"))
+    enriched, extraction = extract_paper_intelligence(paper_obj, pdf)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
+        json.dumps({"paper": enriched.model_dump(mode="json"), "extraction": extraction.model_dump(mode="json")}, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    print(f"Wrote Phase 2 extraction to {output}")
+
+
+@app.command()
+def calibrate(
+    input: Path = typer.Option(..., exists=True, readable=True, help="JSONL with raw_confidence and correct fields."),
+    output: Path = typer.Option(..., help="Output calibration report JSON."),
+    bins: int = typer.Option(10, min=1, max=100),
+) -> None:
+    """Measure extraction confidence calibration on labeled examples."""
+    examples = [CalibrationExample.model_validate(json.loads(line)) for line in input.read_text(encoding="utf-8").splitlines() if line.strip()]
+    report = calibration_report(examples, bins=bins)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(report.model_dump_json(indent=2), encoding="utf-8")
+    print(f"Wrote calibration report for {len(examples)} examples to {output}")
 
 
 if __name__ == "__main__":
