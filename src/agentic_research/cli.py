@@ -19,9 +19,9 @@ from agentic_research.literature.fulltext import FullTextAcquirer, FullTextManif
 from agentic_research.literature.settings import LiteratureSettings
 from agentic_research.literature.transport import HttpClient, RateLimiter
 from agentic_research.retrieval.contracts import SearchQuery
-from agentic_research.retrieval.embeddings import HashEmbeddingProvider, SentenceTransformerEmbeddingProvider
+from agentic_research.retrieval.embeddings import EmbeddingProvider, HashEmbeddingProvider, SentenceTransformerEmbeddingProvider
 from agentic_research.retrieval.hybrid import HybridRetriever
-from agentic_research.retrieval.reranking import CrossEncoderReranker, LexicalReranker
+from agentic_research.retrieval.reranking import CrossEncoderReranker, LexicalReranker, Reranker
 from agentic_research.schemas import Paper
 from agentic_research.schemas.paper_intelligence import StructuredExtraction
 from agentic_research.schemas.phase3 import RetrievalFilters
@@ -32,7 +32,7 @@ from agentic_research.world_model.store import ScientificWorldModel
 app = typer.Typer(help="Agentic-Research scientific discovery toolkit.")
 
 
-def _build_embedder(kind: Literal["none", "hash", "sentence-transformers"], model_name: str) -> object | None:
+def _build_embedder(kind: Literal["none", "hash", "sentence-transformers"], model_name: str) -> EmbeddingProvider | None:
     if kind == "none":
         return None
     if kind == "hash":
@@ -40,7 +40,7 @@ def _build_embedder(kind: Literal["none", "hash", "sentence-transformers"], mode
     return SentenceTransformerEmbeddingProvider(model_name)
 
 
-def _build_reranker(kind: Literal["none", "lexical", "cross-encoder"], model_name: str) -> object | None:
+def _build_reranker(kind: Literal["none", "lexical", "cross-encoder"], model_name: str) -> Reranker | None:
     if kind == "none":
         return None
     if kind == "lexical":
@@ -156,7 +156,7 @@ def index(input: Path = typer.Option(..., exists=True, readable=True, help="JSON
         raise typer.BadParameter("paper.paper_id must equal extraction.paper_id")
     embedder = _build_embedder(embedding, embedding_model)
     with ScientificWorldModel(database) as world:
-        index_extraction(world, paper_obj, extraction, embedder=embedder)  # type: ignore[arg-type]
+        index_extraction(world, paper_obj, extraction, embedder=embedder)
     print(f"Indexed {paper_obj.paper_id} into {database}")
 
 
@@ -169,7 +169,7 @@ def retrieve(text: str = typer.Argument(..., help="Local scientific retrieval qu
     if mode == "lexical":
         embedder = None
     with ScientificWorldModel(database) as world:
-        retriever = HybridRetriever(world, embedder=embedder, reranker=reranker_impl)  # type: ignore[arg-type]
+        retriever = HybridRetriever(world, embedder=embedder, reranker=reranker_impl)
         response = retriever.search(text, limit=limit, mode=mode, filters=filters)
     data = response.model_dump(mode="json")
     if output:
