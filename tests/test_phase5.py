@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from agentic_research.literature.fulltext import FullTextManifest
 from agentic_research.literature.service import LiteratureService
 from agentic_research.retrieval.contracts import LiteratureRetriever, SearchHit, SearchQuery
 from agentic_research.schemas import GapCandidate, GapStatus, Paper
@@ -25,6 +26,37 @@ class FakeRetriever(LiteratureRetriever):
             if any(token.strip('"') in text for token in query_tokens if len(token.strip('"')) > 2):
                 hits.append(SearchHit(paper=item, score=1.0, source=self.name))
         return hits[: query.limit]
+
+
+class FakeFullTextAcquirer:
+    def __init__(self, tmp_path: Path, html_by_paper: dict[str, str]) -> None:
+        self.tmp_path = tmp_path
+        self.html_by_paper = html_by_paper
+
+    def acquire(self, paper: Paper) -> FullTextManifest:
+        text = self.html_by_paper.get(paper.paper_id)
+        if text is None:
+            return FullTextManifest(
+                paper_id=paper.paper_id,
+                source="fake",
+                requested_url="https://example.com/missing",
+                media_type="unknown",
+                status="not_found",
+                error="No fixture",
+            )
+        path = self.tmp_path / f"{paper.paper_id}.html"
+        path.write_text(f"<html><body><p>{text}</p></body></html>", encoding="utf-8")
+        return FullTextManifest(
+            paper_id=paper.paper_id,
+            source="fake",
+            requested_url="https://example.com/paper",
+            final_url="https://example.com/paper",
+            media_type="text/html",
+            status="downloaded",
+            local_path=str(path),
+            sha256="a" * 64,
+            byte_size=path.stat().st_size,
+        )
 
 
 def candidate() -> GapCandidate:
@@ -191,8 +223,59 @@ def test_local_world_model_exact_combination_disproves_candidate(tmp_path: Path)
         )
         world.commit()
         verifier = NoveltyVerifier(world=world)
-        result = verifier.verify(candidate(), NoveltyVerificationConfig(include_local=True, include_external=False))
+        result = verifier.verify(candidate(), NoveltyVerificationConfig(include_local=True, include_external=False, deep_verify=False))
 
     assert "local-world-model" in result.searched_sources
     assert result.verdict == "disproved"
     assert result.counterevidence
+
+
+def test_external_fulltext_can_disprove_metadata_only_prior_work(tmp_path: Path) -> None:
+    prior = paper("prior", "A differently titled study")
+    acquirer = FakeFullTextAcquirer(
+        tmp_path,
+        {"prior": "We evaluate Method Alpha on Dataset Beta for Task Gamma in the experiments."},
+    )
+    verifier = NoveltyVerifier(
+        literature_service=LiteratureService([FakeRetriever([prior])]),
+        fulltext_acquirer=acquirer,
+    )
+
+    result = verifier.verify(
+        candidate(),
+        NoveltyVerificationConfig(
+            include_local=False,
+            include_external=True,
+            deep_verify=True,
+            max_deep_verifications=2,
+            require_deep_verification_for_supported=True,
+        ),
+    )
+
+    assert result.verdict == "disproved"
+    assert any(check.status == "exact" and check.same_context_found for check in result.deep_evidence)
+    assert result.prior_work[0].exact_combination
+
+
+def test_missing_fulltext_prevents_supported_verdict(tmp_path: Path) -> None:
+    prior = paper("prior", "Context only")
+    acquirer = FakeFullTextAcquirer(tmp_path, {})
+    verifier = NoveltyVerifier(
+        literature_service=LiteratureService([FakeRetriever([prior])]),
+        fulltext_acquirer=acquirer,
+    )
+
+    result = verifier.verify(
+        candidate(),
+        NoveltyVerificationConfig(
+            include_local=False,
+            include_external=True,
+            deep_verify=True,
+            max_deep_verifications=2,
+            near_match_similarity=1.0,
+            require_deep_verification_for_supported=True,
+        ),
+    )
+
+    assert result.verdict == "inconclusive"
+    assert any(check.status == "unavailable" for check in result.deep_evidence)
