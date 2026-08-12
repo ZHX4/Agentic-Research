@@ -16,6 +16,7 @@ from .paper_intelligence import (
     TextChunk,
 )
 from .phase3 import RetrievalFilters, RetrievalHit, RetrievalResponse, TraversalResult, WorldEdge, WorldNode
+from .phase4 import GapDiscoveryConfig, GapDiscoveryResult, GapSignal
 
 __all__ = [
     "Paper",
@@ -41,4 +42,7 @@ __all__ = [
     "WorldNode",
     "WorldEdge",
     "TraversalResult",
+    "GapDiscoveryConfig",
+    "GapDiscoveryResult",
+    "GapSignal",
 ]
