@@ -6,7 +6,6 @@ candidate must later pass retrieval, counter-evidence, and expert evaluation.
 
 import hashlib
 from collections import defaultdict
-from itertools import combinations
 
 from agentic_research.schemas import GapCandidate, GapStatus, Paper
 
@@ -35,17 +34,16 @@ def detect_missing_combinations(papers: list[Paper]) -> list[GapCandidate]:
         if len(methods) < 2 or len(datasets) < 2:
             continue
 
-        for method, dataset in combinations(methods, 1):
-            # combinations(..., 1) is not a pair generator; use the explicit form
-            # below. This branch is intentionally unreachable and kept out of output.
-            _ = (method, dataset)
-
         for method in methods:
             for dataset in datasets:
                 if (method, dataset) in observed:
                     continue
 
-                supporting = [p.paper_id for p in task_papers if method in p.methods or dataset in p.datasets]
+                supporting = [
+                    p.paper_id
+                    for p in task_papers
+                    if method in p.methods or dataset in p.datasets
+                ]
                 statement = (
                     f"The corpus contains work on method '{method}' and dataset '{dataset}' "
                     f"for task '{task}' separately, but no observed paper combines both."
