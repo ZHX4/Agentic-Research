@@ -50,13 +50,18 @@ def _normalize(text: str) -> str:
     return " ".join(token for token in tokens if token not in _STOPWORDS and len(token) > 1)
 
 
+def _world_model_entity_key(text: str) -> str:
+    """Match the Phase 3 world-model canonicalization for entity node IDs."""
+    return " ".join(text.casefold().split())
+
+
 def _stable_id(prefix: str, parts: Iterable[str]) -> str:
     digest = hashlib.sha1("||".join(parts).encode("utf-8")).hexdigest()[:20]
     return f"{prefix}:{digest}"
 
 
-def _entity_node_id(kind: str, normalized_value: str) -> str:
-    digest = hashlib.sha1(normalized_value.encode("utf-8")).hexdigest()[:20]
+def _entity_node_id(kind: str, value: str) -> str:
+    digest = hashlib.sha1(_world_model_entity_key(value).encode("utf-8")).hexdigest()[:20]
     return f"{kind}:{digest}"
 
 
@@ -237,15 +242,15 @@ def _underexplored_conditions(papers: list[sqlite3.Row], by_paper: dict[str, dic
         for condition, condition_papers in sorted(condition_support.items()):
             if len(condition_papers) < cfg.min_condition_support:
                 continue
-            anchored = condition_papers & relevant
-            if not anchored:
-                continue
-            coverage = len(anchored) / len(relevant)
+            coverage = len(relevant & condition_papers) / len(relevant)
             if coverage > cfg.max_underexplored_coverage:
                 continue
-            signals.append(GapSignal(signal_id=_stable_id("signal", ["underexplored_condition", method, task, condition]), gap_type="underexplored_condition", statement=f"Condition '{condition}' is underrepresented for method '{method}' on task '{task}'.", paper_ids=sorted(relevant | condition_papers), node_ids=[_entity_node_id("method", method), _entity_node_id("task", task)], entity_values={"method": method, "task": task}, support_count=len(anchored), structural_score=_mean_score(1.0 - coverage, min(1.0, len(relevant) / 5)), provenance=[f"condition_support={len(condition_papers)}", f"pair_support={len(relevant)}", f"pair_condition_coverage={coverage:.4f}"]))
+            signals.append(GapSignal(signal_id=_stable_id("signal", ["underexplored_condition", method, task, condition]), gap_type="underexplored_condition", statement=f"Condition '{condition}' is underrepresented for method '{method}' on task '{task}'.", paper_ids=sorted(relevant | condition_papers), node_ids=[_entity_node_id("method", method), _entity_node_id("task", task)], entity_values={"method": method, "task": task, "condition": condition}, support_count=len(relevant & condition_papers), structural_score=_mean_score(1.0 - coverage, min(1.0, len(relevant) / 5)), provenance=[f"condition_support={len(condition_papers)}", f"pair_support={len(relevant)}", f"pair_condition_coverage={coverage:.4f}"]))
     signals = sorted(signals, key=lambda s: (-s.structural_score, s.signal_id))[:cfg.max_candidates_per_type]
-    candidates = [_candidate(signal, coverage=float(next(v.split("=", 1)[1] for v in signal.provenance if v.startswith("pair_condition_coverage="))) for signal in signals]
+    candidates = []
+    for signal in signals:
+        coverage = float(next(value.split("=", 1)[1] for value in signal.provenance if value.startswith("pair_condition_coverage=")))
+        candidates.append(_candidate(signal, coverage=coverage))
     return signals, candidates
 
 
@@ -261,7 +266,7 @@ def _unresolved_limitations(claims: list[dict[str, object]], cfg: GapDiscoveryCo
         papers = sorted({str(item["paper_id"]) for item in items})
         if len(papers) < cfg.min_limitation_support:
             continue
-        signals.append(GapSignal(signal_id=_stable_id("signal", ["unresolved_limitation", topic]), gap_type="unresolved_limitation", statement=f"Limitation theme '{topic}' recurs across {len(papers)} indexed papers and is a candidate unresolved limitation.", paper_ids=papers, node_ids=sorted({str(item["node_id"]) for item in items}), support_count=len(papers), structural_score=min(1.0, len(papers) / (2 * cfg.min_limitation_support)), provenance=["recurring limitation claims"]))
+        signals.append(GapSignal(signal_id=_stable_id("signal", ["unresolved_limitation", topic]), gap_type="unresolved_limitation", statement=f"Limitation theme '{topic}' recurs across {len(papers)} indexed papers and is a candidate unresolved limitation.", paper_ids=papers, node_ids=sorted({str(item["node_id"]) for item in items}), entity_values={"limitation": topic}, support_count=len(papers), structural_score=min(1.0, len(papers) / (2 * cfg.min_limitation_support)), provenance=["recurring limitation claims"]))
     signals = sorted(signals, key=lambda s: (-s.structural_score, s.signal_id))[:cfg.max_candidates_per_type]
     return signals, [_candidate(s) for s in signals]
 
@@ -287,13 +292,13 @@ def _cross_domain(papers: list[sqlite3.Row], by_paper: dict[str, dict[str, set[s
         for task in sorted(entity_papers["tasks"]):
             if entity_papers["methods"][method] & entity_papers["tasks"][task]:
                 continue
-            for method_domain, method_domain_papers in sorted(method_domain[method].items()):
+            for method_domain_name, method_domain_papers in sorted(method_domain[method].items()):
                 if len(method_domain_papers) < cfg.min_entity_support:
                     continue
-                for task_domain, task_domain_papers in sorted(task_domain[task].items()):
-                    if method_domain == task_domain or len(task_domain_papers) < cfg.min_entity_support:
+                for task_domain_name, task_domain_papers in sorted(task_domain[task].items()):
+                    if method_domain_name == task_domain_name or len(task_domain_papers) < cfg.min_entity_support:
                         continue
-                    signals.append(GapSignal(signal_id=_stable_id("signal", ["cross_domain", method, task, method_domain, task_domain]), gap_type="cross_domain", statement=f"Method '{method}' is represented in domain '{method_domain}' while task '{task}' is represented in domain '{task_domain}', but the direct combination is absent from the indexed corpus.", paper_ids=sorted(method_domain_papers | task_domain_papers), node_ids=[_entity_node_id("method", method), _entity_node_id("task", task)], entity_values={"method": method, "task": task}, support_count=min(len(method_domain_papers), len(task_domain_papers)), structural_score=_mean_score(min(1.0, len(method_domain_papers) / (2 * cfg.min_entity_support)), min(1.0, len(task_domain_papers) / (2 * cfg.min_entity_support))), provenance=[f"method_domain={method_domain}", f"task_domain={task_domain}"]))
+                    signals.append(GapSignal(signal_id=_stable_id("signal", ["cross_domain", method, task, method_domain_name, task_domain_name]), gap_type="cross_domain", statement=f"Method '{method}' is represented in domain '{method_domain_name}' while task '{task}' is represented in domain '{task_domain_name}', but the direct combination is absent from the indexed corpus.", paper_ids=sorted(method_domain_papers | task_domain_papers), node_ids=[_entity_node_id("method", method), _entity_node_id("task", task)], entity_values={"method": method, "task": task, "method_domain": method_domain_name, "task_domain": task_domain_name}, support_count=min(len(method_domain_papers), len(task_domain_papers)), structural_score=_mean_score(min(1.0, len(method_domain_papers) / (2 * cfg.min_entity_support)), min(1.0, len(task_domain_papers) / (2 * cfg.min_entity_support))), provenance=[f"method_domain={method_domain_name}", f"task_domain={task_domain_name}"]))
     signals = sorted(signals, key=lambda s: (-s.structural_score, s.signal_id))[:cfg.max_candidates_per_type]
     return signals, [_candidate(s) for s in signals]
 
@@ -303,7 +308,9 @@ def _graph_negative_space(by_paper: dict[str, dict[str, set[str]]], entity_paper
     dataset_tasks: defaultdict[str, set[str]] = defaultdict(set)
     direct_md: set[tuple[str, str]] = set()
     for fields in by_paper.values():
-        methods, datasets, tasks = fields.get("methods", set()), fields.get("datasets", set()), fields.get("tasks", set())
+        methods = fields.get("methods", set())
+        datasets = fields.get("datasets", set())
+        tasks = fields.get("tasks", set())
         for method in methods:
             method_tasks[method].update(tasks)
         for dataset in datasets:
@@ -312,45 +319,44 @@ def _graph_negative_space(by_paper: dict[str, dict[str, set[str]]], entity_paper
             for dataset in datasets:
                 direct_md.add((method, dataset))
     signals: list[GapSignal] = []
-    for method, method_neighbors in sorted(method_tasks.items()):
-        if len(method_neighbors) < cfg.min_graph_degree:
+    for method, method_neighbor_tasks in sorted(method_tasks.items()):
+        if len(method_neighbor_tasks) < cfg.min_graph_degree:
             continue
-        for dataset, dataset_neighbors in sorted(dataset_tasks.items()):
-            if len(dataset_neighbors) < cfg.min_graph_degree or (method, dataset) in direct_md:
+        for dataset, dataset_neighbor_tasks in sorted(dataset_tasks.items()):
+            if len(dataset_neighbor_tasks) < cfg.min_graph_degree or (method, dataset) in direct_md:
                 continue
-            common_tasks = sorted(method_neighbors & dataset_neighbors)
+            common_tasks = sorted(method_neighbor_tasks & dataset_neighbor_tasks)
             if len(common_tasks) < cfg.min_common_neighbors:
                 continue
-            signals.append(GapSignal(signal_id=_stable_id("signal", ["graph_negative_space", method, dataset, *common_tasks]), gap_type="graph_negative_space", statement=f"Method '{method}' and dataset '{dataset}' are structurally separated: they share {len(common_tasks)} task neighbors but have no direct indexed co-occurrence.", paper_ids=sorted(entity_papers["methods"][method] | entity_papers["datasets"][dataset]), node_ids=[_entity_node_id("method", method), _entity_node_id("dataset", dataset)] + [_entity_node_id("task", task) for task in common_tasks], entity_values={"method": method, "dataset": dataset}, support_count=len(common_tasks), structural_score=_mean_score(min(1.0, len(common_tasks) / (2 * cfg.min_common_neighbors)), min(1.0, len(method_neighbors) / (2 * cfg.min_graph_degree)), min(1.0, len(dataset_neighbors) / (2 * cfg.min_graph_degree))), provenance=["common-neighbor structural-hole analysis"]))
+            signals.append(GapSignal(signal_id=_stable_id("signal", ["graph_negative_space", method, dataset, *common_tasks]), gap_type="graph_negative_space", statement=f"Method '{method}' and dataset '{dataset}' are structurally separated: they share {len(common_tasks)} task neighbors but have no direct indexed co-occurrence.", paper_ids=sorted(entity_papers["methods"][method] | entity_papers["datasets"][dataset]), node_ids=[_entity_node_id("method", method), _entity_node_id("dataset", dataset)] + [_entity_node_id("task", task) for task in common_tasks], entity_values={"method": method, "dataset": dataset, "shared_tasks": ", ".join(common_tasks)}, support_count=len(common_tasks), structural_score=_mean_score(min(1.0, len(common_tasks) / (2 * cfg.min_common_neighbors)), min(1.0, len(method_neighbor_tasks) / (2 * cfg.min_graph_degree)), min(1.0, len(dataset_neighbor_tasks) / (2 * cfg.min_graph_degree))), provenance=["common-neighbor structural-hole analysis"]))
     signals = sorted(signals, key=lambda s: (-s.structural_score, s.signal_id))[:cfg.max_candidates_per_type]
     return signals, [_candidate(s) for s in signals]
 
 
-def _fingerprint(papers: list[sqlite3.Row], by_paper: dict[str, dict[str, set[str]]], claims: list[dict[str, object]]) -> str:
-    payload = {
-        "papers": [{"paper_id": row["paper_id"], "year": row["year"], "source": row["source"], "metadata": row["metadata_json"]} for row in papers],
-        "entities": {paper_id: {field: sorted(values) for field, values in sorted(fields.items())} for paper_id, fields in sorted(by_paper.items())},
-        "claims": claims,
-    }
-    return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest()
-
-
 def discover_gaps(world: ScientificWorldModel, config: GapDiscoveryConfig | None = None) -> GapDiscoveryResult:
-    """Run deterministic Phase 4 discovery and emit candidate gaps only."""
+    """Run deterministic Phase 4 discovery; emit candidates only."""
     cfg = config or GapDiscoveryConfig()
     papers, by_paper, entity_papers = _load_snapshot(world, cfg.temporal_cutoff)
     allowed = {row["paper_id"] for row in papers}
     claims = _load_claims(world, allowed)
-    run_id = _stable_id("gap-run", [json.dumps(cfg.model_dump(mode="json"), sort_keys=True, separators=(",", ":")), _fingerprint(papers, by_paper, claims)])
-    detectors = {"missing_combination": lambda: _missing_combinations(by_paper, entity_papers, cfg), "contradiction": lambda: _contradictions(claims, cfg), "underexplored_condition": lambda: _underexplored_conditions(papers, by_paper, cfg), "unresolved_limitation": lambda: _unresolved_limitations(claims, cfg), "cross_domain": lambda: _cross_domain(papers, by_paper, entity_papers, cfg), "graph_negative_space": lambda: _graph_negative_space(by_paper, entity_papers, cfg)}
-    signals: list[GapSignal] = []
-    candidates: list[GapCandidate] = []
+    config_key = json.dumps(cfg.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+    run_id = _stable_id("gap-run", [config_key, *sorted(allowed)])
+    detectors = {
+        "missing_combination": lambda: _missing_combinations(by_paper, entity_papers, cfg),
+        "contradiction": lambda: _contradictions(claims, cfg),
+        "underexplored_condition": lambda: _underexplored_conditions(papers, by_paper, cfg),
+        "unresolved_limitation": lambda: _unresolved_limitations(claims, cfg),
+        "cross_domain": lambda: _cross_domain(papers, by_paper, entity_papers, cfg),
+        "graph_negative_space": lambda: _graph_negative_space(by_paper, entity_papers, cfg),
+    }
+    all_signals: list[GapSignal] = []
+    all_candidates: list[GapCandidate] = []
     for gap_type, detector in detectors.items():
         if gap_type not in cfg.include_types:
             continue
-        detected_signals, detected_candidates = detector()
-        signals.extend(detected_signals)
-        candidates.extend(detected_candidates)
-    signals.sort(key=lambda item: (item.gap_type, -item.structural_score, item.signal_id))
-    candidates.sort(key=lambda item: (-item.confidence, item.gap_type, item.gap_id))
-    return GapDiscoveryResult(run_id=run_id, temporal_cutoff=cfg.temporal_cutoff, corpus_paper_count=len(papers), signals=signals, candidates=candidates)
+        signals, candidates = detector()
+        all_signals.extend(signals)
+        all_candidates.extend(candidates)
+    all_signals.sort(key=lambda item: (item.gap_type, -item.structural_score, item.signal_id))
+    all_candidates.sort(key=lambda item: (-item.confidence, item.gap_type, item.gap_id))
+    return GapDiscoveryResult(run_id=run_id, temporal_cutoff=cfg.temporal_cutoff, corpus_paper_count=len(papers), signals=all_signals, candidates=all_candidates)
