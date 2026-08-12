@@ -3,26 +3,23 @@ from __future__ import annotations
 
 from collections import defaultdict
 from statistics import mean
+from typing import Literal
 
 from agentic_research.schemas.phase8 import HumanEvaluationResult, HumanRating, MetricValue
-
 from .metrics import cohen_kappa, krippendorff_alpha_nominal
 
 
-def evaluate_human_ratings(
-    ratings: list[HumanRating],
-    *,
-    evaluation_id: str,
-    task: str,
-) -> HumanEvaluationResult:
-    if task not in {"gap_quality", "novelty_verdict", "extraction_quality", "hypothesis_quality"}:
-        raise ValueError("Unsupported human-evaluation task")
+def evaluate_human_ratings(ratings: list[HumanRating], *, evaluation_id: str, task: Literal["gap_quality", "novelty_verdict", "extraction_quality", "hypothesis_quality"]) -> HumanEvaluationResult:
     if not ratings:
         raise ValueError("At least one human rating is required")
     by_case: dict[str, list[HumanRating]] = defaultdict(list)
     for rating in ratings:
         by_case[rating.case_id].append(rating)
     annotators = sorted({rating.annotator_id for rating in ratings})
+    if len(annotators) < 2:
+        raise ValueError("Human agreement requires at least two annotators")
+    if any(len(by_case[case_id]) < 2 for case_id in by_case):
+        raise ValueError("Every evaluated item requires at least two ratings")
     matrix: list[list[str | None]] = []
     for case_id in sorted(by_case):
         row_by_annotator = {rating.annotator_id: rating.label for rating in by_case[case_id]}
@@ -40,8 +37,4 @@ def evaluate_human_ratings(
     ]
     numeric = [rating.score for rating in ratings if rating.score is not None]
     aggregate = [MetricValue(name="mean_human_score", value=mean(numeric), n=len(numeric))] if numeric else []
-    return HumanEvaluationResult(
-        evaluation_id=evaluation_id,
-        task=task, annotator_count=len(annotators), item_count=len(by_case),
-        agreement_metrics=agreement, aggregate_scores=aggregate, ratings=ratings,
-    )
+    return HumanEvaluationResult(evaluation_id=evaluation_id, task=task, annotator_count=len(annotators), item_count=len(by_case), agreement_metrics=agreement, aggregate_scores=aggregate, ratings=ratings)
