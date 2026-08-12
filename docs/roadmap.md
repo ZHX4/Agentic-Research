@@ -51,14 +51,21 @@
 
 > Live GitHub Actions execution is currently blocked by an account billing lock. The failed runs are infrastructure failures before the job starts, not repository test failures. See `docs/phase-3-checklist.md`.
 
-## Phase 4 — Gap discovery
+## Phase 4 — Gap discovery (implemented)
 
-- missing combinations
-- contradictions
-- underexplored conditions
-- unresolved limitations
-- cross-domain connections
-- graph-based negative-space analysis
+- [x] missing combinations
+- [x] contradictions
+- [x] underexplored conditions
+- [x] unresolved limitation candidates
+- [x] cross-domain connections
+- [x] graph-based negative-space analysis
+- [x] actual world-model node provenance
+- [x] temporal cutoff
+- [x] deterministic discovery fingerprint
+- [x] configurable thresholds
+- [x] `discover-gaps` CLI
+- [x] regression coverage
+- [x] candidate-only status enforcement
 
 ## Phase 5 — Adversarial novelty
 
