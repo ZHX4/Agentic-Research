@@ -30,4 +30,4 @@ def index_extraction(
                 if len(vector) != embedder.dimension:
                     raise ValueError("Embedding provider returned an inconsistent dimension")
                 vectors[chunk.chunk_id] = vector
-    world.index_extraction(paper, extraction, vectors=vectors)
+    world.index_extraction(paper, extraction, vectors=vectors, vector_model=embedder.model_id if embedder else None)
