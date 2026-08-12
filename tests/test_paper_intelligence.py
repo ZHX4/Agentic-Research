@@ -1,14 +1,16 @@
 from pathlib import Path
 
 import fitz
+import pytest
+from pydantic import ValidationError
 
 from agentic_research.intelligence.calibration import CalibrationExample, IsotonicCalibrator, calibration_report
 from agentic_research.intelligence.citations import extract_citation_edges, extract_references
 from agentic_research.intelligence.chunking import chunk_blocks
 from agentic_research.intelligence.layout import TextBlock, extract_figures, extract_tables
 from agentic_research.intelligence.sections import assign_section, detect_sections
-from agentic_research.schemas import Paper
-from agentic_research.schemas.paper_intelligence import BoundingBox, TextChunk
+from agentic_research.schemas import Evidence, Paper
+from agentic_research.schemas.paper_intelligence import BoundingBox, ClaimEvidenceLink, StructuredExtraction, TextChunk
 
 
 def _block(order: int, text: str, page: int = 1, size: float = 12, bold: bool = False) -> TextBlock:
@@ -52,8 +54,17 @@ def test_reference_parsing_and_numeric_citation_edges() -> None:
     chunk = TextChunk(chunk_id="c1", paper_id="p1", text="Prior work supports this result [1].")
     edges = extract_citation_edges(paper, [chunk], refs)
     assert len(edges) == 1
-    assert edges[0].cited_paper_id is not None
     assert edges[0].cited_paper_id == "doi:10.1234/abc"
+
+
+def test_author_year_citation_edges() -> None:
+    paper = Paper(paper_id="p1", title="Paper")
+    refs_text = "[1] Smith, J. Retrieval Methods. 2024. doi:10.1234/SMITH"
+    refs = extract_references(paper, refs_text)
+    chunk = TextChunk(chunk_id="c1", paper_id="p1", text="Prior work (Smith, 2024) supports this result.")
+    edges = extract_citation_edges(paper, [chunk], refs)
+    assert len(edges) == 1
+    assert edges[0].cited_paper_id == "doi:10.1234/smith"
 
 
 def test_confidence_calibrator_is_monotonic() -> None:
@@ -70,6 +81,32 @@ def test_calibration_report() -> None:
     assert report.sample_count == 2
     assert 0 <= report.expected_calibration_error <= 1
     assert 0 <= report.brier_score <= 1
+
+
+def test_structured_extraction_rejects_broken_evidence_link() -> None:
+    with pytest.raises(ValidationError):
+        StructuredExtraction(
+            extraction_id="e1",
+            paper_id="p1",
+            evidence=[
+                Evidence(
+                    evidence_id="ev1",
+                    paper_id="p1",
+                    claim="claim",
+                    confidence=0.5,
+                )
+            ],
+            claim_links=[
+                ClaimEvidenceLink(
+                    link_id="l1",
+                    claim_id="missing-claim",
+                    evidence_id="ev1",
+                    relation="supports",
+                    confidence=0.5,
+                )
+            ],
+            extractor_version="test",
+        )
 
 
 def _make_table_pdf(path: Path) -> None:
