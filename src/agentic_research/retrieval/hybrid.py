@@ -35,13 +35,12 @@ class HybridRetriever:
         filter_dict = (filters or RetrievalFilters()).model_dump()
         candidate_limit = candidate_limit or max(50, limit * 5)
         lexical_rows = self.world.lexical_search(query, limit=candidate_limit, filters=filter_dict) if mode in {"lexical", "hybrid"} else []
-        dense_rows = self._dense_rows(query, candidate_limit, filter_dict) if mode in {"dense", "hybrid"} else []
+        dense_rows, dense_scores = self._dense_rows(query, candidate_limit, filter_dict) if mode in {"dense", "hybrid"} else ([], {})
 
         hits_by_id: dict[str, RetrievalHit] = {}
         lexical_rank = {row["chunk_id"]: rank for rank, row in enumerate(lexical_rows, start=1)}
         dense_rank = {row["chunk_id"]: rank for rank, row in enumerate(dense_rows, start=1)}
         lexical_score_by_id = {row["chunk_id"]: 1.0 / rank for rank, row in enumerate(lexical_rows, start=1)}
-        dense_score_by_id = {row["chunk_id"]: self._dense_score(query, row) for row in dense_rows}
         row_by_id: dict[str, sqlite3.Row] = {row["chunk_id"]: row for row in [*lexical_rows, *dense_rows]}
 
         for chunk_id in set(lexical_rank) | set(dense_rank):
@@ -65,7 +64,7 @@ class HybridRetriever:
                 year=row["year"],
                 source=row["source"],
                 lexical_score=lexical_score_by_id.get(chunk_id, 0.0),
-                dense_score=dense_score_by_id.get(chunk_id),
+                dense_score=dense_scores.get(chunk_id),
                 fused_score=fused,
                 retrieval_reasons=reasons,
             )
@@ -75,22 +74,17 @@ class HybridRetriever:
             ranked = self.reranker.rerank(query, ranked)
         return RetrievalResponse(query=query, mode=mode, hits=ranked[:limit])
 
-    def _dense_rows(self, query: str, limit: int, filters: dict[str, object]) -> list[sqlite3.Row]:
+    def _dense_rows(self, query: str, limit: int, filters: dict[str, object]) -> tuple[list[sqlite3.Row], dict[str, float]]:
         if self.embedder is None:
-            return []
+            return [], {}
         query_vector = self.embedder.embed([query])[0]
         scored: list[tuple[float, sqlite3.Row]] = []
         for row in self.world.dense_candidates(embedding_model=self.embedder.model_id, filters=filters):
             score = self._cosine_from_blob(query_vector, row["vector"], int(row["vector_dim"]))
             scored.append((score, row))
         scored.sort(key=lambda pair: (-pair[0], pair[1]["chunk_id"]))
-        return [row for _, row in scored[:limit]]
-
-    def _dense_score(self, query: str, row: sqlite3.Row) -> float:
-        if self.embedder is None:
-            return 0.0
-        vector = self.embedder.embed([query])[0]
-        return self._cosine_from_blob(vector, row["vector"], int(row["vector_dim"]))
+        selected = scored[:limit]
+        return [row for _, row in selected], {row["chunk_id"]: score for score, row in selected}
 
     @staticmethod
     def _cosine_from_blob(query_vector: Sequence[float], blob: bytes, dimension: int) -> float:
