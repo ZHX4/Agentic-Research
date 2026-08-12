@@ -5,11 +5,11 @@ import hashlib
 import pytest
 from typer.testing import CliRunner
 
+from agentic_research.evaluation.cli import app
 from agentic_research.evaluation.comparison import compare_baselines, evaluate_ablation, summarize_costs
 from agentic_research.evaluation.engine import evaluate_extraction, evaluate_labels, evaluate_retrieval, evaluate_temporal
 from agentic_research.evaluation.human import evaluate_human_ratings
 from agentic_research.evaluation.metrics import average_precision_at_k, cohen_kappa, ndcg_at_k, temporal_leakage
-from agentic_research.evaluation.cli import app
 from agentic_research.schemas.phase8 import AblationSpec, BenchmarkCase, CostRecord, HumanRating, PredictionRecord
 
 
@@ -23,7 +23,8 @@ def retrieval_case(case_id: str = "c1") -> BenchmarkCase:
 
 def test_retrieval_metrics_are_correct() -> None:
     assert average_precision_at_k(["a", "x", "b"], {"a", "b"}, 3) == pytest.approx((1.0 + 2 / 3) / 2)
-    assert ndcg_at_k(["a", "x", "b"], {"a", "b"}, 3) == pytest.approx((1.0 + 1 / 1.5849625007) / (1.0 + 1 / 1.5849625007))
+    expected = (1.0 + 1 / 2.0) / (1.0 + 1 / 1.5849625007)
+    assert ndcg_at_k(["a", "x", "b"], {"a", "b"}, 3) == pytest.approx(expected)
 
 
 def test_retrieval_benchmark_runs() -> None:
