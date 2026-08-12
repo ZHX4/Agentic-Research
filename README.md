@@ -60,9 +60,10 @@ Phase 4 Gap Discovery
       v
 Phase 5 Adversarial Verification
   - Devil's Advocate
-  - query expansion
-  - broader literature search
+  - deterministic query expansion
+  - local + external search
   - nearest-prior-work comparison
+  - bounded full-text verification
   - counterevidence registry
   - novelty uncertainty
       |
@@ -87,7 +88,9 @@ agentic-research-verify verify-gaps \
   --database artifacts/world-model.sqlite
 ```
 
-For a deterministic local-only verification:
+By default, the verifier performs bounded deep full-text checks of the closest prior works. The cache and budget can be controlled with `--fulltext-cache-dir` and `--max-deep-verifications`.
+
+For deterministic local-only verification:
 
 ```bash
 agentic-research-verify verify-gaps \
@@ -97,7 +100,7 @@ agentic-research-verify verify-gaps \
   --no-external
 ```
 
-Phase 5 distinguishes `disproved`, `weakened`, `supported`, and `inconclusive`. `supported` means the candidate survived the configured verification budget; it does **not** mean globally proven novel.
+Phase 5 distinguishes `disproved`, `weakened`, `supported`, and `inconclusive`. `supported` means the candidate survived the configured verification budget and required deep checks; it does **not** mean globally proven novel.
 
 ## Scientific integrity rules
 
@@ -115,7 +118,9 @@ Phase 5 distinguishes `disproved`, `weakened`, `supported`, and `inconclusive`. 
 12. Phase 4 candidates are corpus-relative structural signals, not novelty claims.
 13. Phase 5 treats failed or empty search as uncertainty, never proof of novelty.
 14. Temporal cutoffs exclude future papers and unknown-year papers during historical verification.
-15. Phase 5 transitions are reversible only through explicit later research-state logic; no hypothesis generation occurs here.
+15. Direct prior work can disprove a gap from structured data, graph evidence, or successful deep full-text evidence.
+16. When required full-text evidence is unavailable, Phase 5 does not convert search completion into a novelty conclusion.
+17. Phase 5 does not generate research hypotheses or experiments.
 
 ## Repository layout
 
@@ -154,6 +159,7 @@ python -m agentic_research.cli --help
 python -m agentic_research.cli demo
 python -m agentic_research.cli validate --input data/demo/papers.jsonl
 python -m agentic_research.cli gaps --input data/demo/papers.jsonl --output artifacts/demo/gaps.json
+agentic-research-verify --help
 ```
 
 For model-backed semantic retrieval:
