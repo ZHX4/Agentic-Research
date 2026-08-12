@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -16,6 +17,29 @@ GapSignalType = Literal[
     "cross_domain",
     "graph_negative_space",
 ]
+
+_ENTITY_TYPES = {
+    "method": "method",
+    "dataset": "dataset",
+    "task": "task",
+    "metric": "metric",
+    "baseline": "baseline",
+}
+
+
+def _canonical_entity_value(value: str) -> str:
+    return " ".join(value.casefold().split())
+
+
+def canonical_entity_node_id(kind: str, value: str) -> str:
+    """Return the same stable entity-node ID scheme used by the Phase 3 world model."""
+    if kind not in _ENTITY_TYPES:
+        raise ValueError(f"Unsupported entity kind: {kind}")
+    normalized = _canonical_entity_value(value)
+    if not normalized:
+        raise ValueError("Entity value must not be empty")
+    digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:20]
+    return f"{kind}:{digest}"
 
 
 class GapDiscoveryConfig(BaseModel):
@@ -58,6 +82,19 @@ class GapSignal(BaseModel):
     support_count: int = Field(ge=0)
     structural_score: float = Field(ge=0, le=1)
     provenance: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def align_entity_provenance(self) -> "GapSignal":
+        """Normalize entity node IDs to the canonical Phase 3 world-model scheme."""
+        generated = [
+            canonical_entity_node_id(kind, value)
+            for kind, value in sorted(self.entity_values.items())
+            if kind in _ENTITY_TYPES and value.strip()
+        ]
+        if generated:
+            non_entity_ids = [node_id for node_id in self.node_ids if node_id.split(":", 1)[0] not in _ENTITY_TYPES]
+            self.node_ids = sorted(dict.fromkeys([*non_entity_ids, *generated]))
+        return self
 
 
 class GapDiscoveryResult(BaseModel):
