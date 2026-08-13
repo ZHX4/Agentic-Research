@@ -1,22 +1,57 @@
 # Phase 9 — Autonomous Discovery
 
-Phase 9 is the durable control plane above Phases 4–8. It orchestrates the canonical stage implementations through explicit adapters instead of duplicating their scientific logic.
+Phase 9 is the durable control plane above Phases 4–8. It orchestrates the canonical stage implementations through explicit, injectable Python adapters and never duplicates their scientific logic.
 
 ```text
 Gap → Verify → Hypothesis → Execute → Evaluate → Review → Report → next iteration
 ```
 
-The controller persists `AutonomousRunState` in SQLite, writes immutable checkpoint snapshots, verifies SHA-256 integrity on resume, bounds retries and iterations, detects no-progress loops, and stops on critical reviewer rejection.
+The controller persists `AutonomousRunState` in SQLite, writes checkpoint snapshots, verifies SHA-256 integrity on resume, bounds retries and iterations, detects no-progress loops, and stops on critical reviewer rejection.
 
-Each stage adapter returns a JSON object. Stage outputs are persisted as artifacts with input/output hashes. Provenance IDs harvested from outputs are stored on the durable run state and included in the final deterministic report.
+## Production adapter contract
 
-Phase 9 requires a reviewer panel. The repository provides deterministic structural/provenance reviewers for offline testing and supports injected independent reviewer implementations via the `Reviewer` interface.
+A production run must provide an adapter manifest whose six stage entries are `module:function` references:
 
-The bundled CLI is a safe control-plane smoke path using identity adapters. Production deployments inject adapters connected to the existing Phase 4–8 services.
-
-```bash
-agentic-research-autonomous run --run-id run-001 --input-file artifacts/input.json --output artifacts/phase9-report.json
-agentic-research-autonomous resume --run-id run-001 --output artifacts/phase9-report.json
+```json
+{
+  "stages": {
+    "gap": "your_adapters:run_gap",
+    "verify": "your_adapters:run_verify",
+    "hypothesis": "your_adapters:run_hypothesis",
+    "execute": "your_adapters:run_execute",
+    "evaluate": "your_adapters:run_evaluate",
+    "report": "your_adapters:run_report"
+  }
+}
 ```
 
-Phase 9 does not publish papers or automate publication. Those responsibilities remain in Phase 10.
+Each callable receives one JSON-compatible dictionary and must return one JSON-compatible dictionary. The controller records each stage's input/output hashes, persists its output artifact, harvests provenance IDs, and will not silently rerun a completed stage whose artifact hash still matches the checkpoint.
+
+Run the real control plane with:
+
+```bash
+agentic-research-autonomous run \
+  --run-id run-001 \
+  --input-file artifacts/phase9-input.json \
+  --adapters-file configs/phase9.adapters.json \
+  --output artifacts/phase9-report.json
+```
+
+Resume from durable state with:
+
+```bash
+agentic-research-autonomous resume \
+  --run-id run-001 \
+  --adapters-file configs/phase9.adapters.json \
+  --output artifacts/phase9-report.json
+```
+
+`--offline-smoke-test` is available only for deterministic control-plane tests; it is not the production path and must not be used to claim scientific discovery.
+
+## Independent review
+
+The default panel contains separate provenance and scientific-integrity reviewers. Additional reviewer implementations can be injected through the `Reviewer` interface. A critical reviewer rejection stops the run by policy.
+
+## Boundaries
+
+Phase 9 may select, execute, evaluate, review, retry, checkpoint, and resume research work. It does not publish papers or automate publication. Those responsibilities remain in Phase 10.
