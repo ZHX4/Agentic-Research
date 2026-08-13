@@ -1,9 +1,7 @@
 """Benchmark split-integrity validation."""
 from __future__ import annotations
 
-from collections import defaultdict
-
-from agentic_research.schemas.phase8 import BenchmarkCase
+from agentic_research.schemas.phase8 import BenchmarkCase, PredictionRecord
 
 
 def validate_split_disjointness(splits: dict[str, list[BenchmarkCase]]) -> None:
@@ -32,5 +30,11 @@ def validate_split_disjointness(splits: dict[str, list[BenchmarkCase]]) -> None:
             seen_hashes[input_hash] = split_name
 
 
-def case_counts(splits: dict[str, list[BenchmarkCase]]) -> dict[str, int]:
-    return {name: len(cases) for name, cases in sorted(splits.items())}
+def validate_prediction_coverage(cases: list[BenchmarkCase], predictions: list[PredictionRecord]) -> None:
+    case_ids = {case.case_id for case in cases}
+    prediction_ids = [prediction.case_id for prediction in predictions]
+    if len(prediction_ids) != len(set(prediction_ids)):
+        raise ValueError("Duplicate prediction case_id values are not allowed")
+    unknown = set(prediction_ids) - case_ids
+    if unknown:
+        raise ValueError(f"Predictions contain unknown case IDs: {sorted(unknown)}")
