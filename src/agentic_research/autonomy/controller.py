@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -12,7 +13,7 @@ import typer
 
 from agentic_research.schemas.phase9 import AutonomousRunConfig, AutonomousRunReport, AutonomousRunState, Checkpoint, StageExecution
 
-from .reviewers import DeterministicReviewer, ReviewPanel
+from .reviewers import DeterministicReviewer, ProvenanceReviewer, ReviewPanel, ScientificIntegrityReviewer
 from .state_store import SQLiteRunStore
 
 StageName = Literal["gap", "verify", "hypothesis", "execute", "evaluate", "review", "report"]
@@ -73,6 +74,8 @@ class AutonomousController:
             raise ValueError(f"Missing stage adapters: {missing}")
 
     def create(self, run_id: str, config: AutonomousRunConfig) -> AutonomousRunState:
+        if self.store.load(run_id) is not None:
+            raise ValueError(f"Run already exists: {run_id}")
         state = AutonomousRunState(run_id=run_id, status="planned", iteration=0, config=config)
         self._persist(state)
         return state
@@ -124,18 +127,17 @@ class AutonomousController:
                 adapter = self.adapters[stage]
                 stage_id = f"stage:{state.iteration}:{stage}"
                 previous = next((item for item in state.stage_executions if item.stage_id == stage_id), None)
-                if previous is not None and previous.status == "succeeded":
-                    if previous.output_artifact:
-                        payload = json.loads(Path(previous.output_artifact).read_text(encoding="utf-8"))
+                if previous is not None and previous.status == "succeeded" and previous.output_artifact:
+                    artifact = Path(previous.output_artifact)
+                    if _sha256(artifact.read_text(encoding="utf-8")) != previous.output_sha256:
+                        raise ValueError(f"Stage artifact hash mismatch; refusing resume: {artifact}")
+                    payload = json.loads(artifact.read_text(encoding="utf-8"))
                     self._harvest(state, payload)
                     continue
+                execution = previous or StageExecution(stage_id=stage_id, iteration=state.iteration, stage=stage, status="running", attempts=0)
                 if previous is None:
-                    execution = StageExecution(stage_id=stage_id, iteration=state.iteration, stage=stage, status="running", attempts=0)
                     state.stage_executions.append(execution)
-                else:
-                    execution = previous
-                    execution.status = "running"
-                    execution.error = None
+                execution.status = "running"; execution.error = None
                 state.current_stage = stage
                 self._persist(state)
                 max_attempts = state.config.max_stage_retries + 1
@@ -167,7 +169,7 @@ class AutonomousController:
 
             if state.config.require_review_before_next_iteration and not any(review.iteration == state.iteration for review in state.reviews):
                 state.status = "failed"; state.stop_reason = "Iteration completed without required review"; state.current_stage = None; self._persist(state); return state
-            signature = _sha256(_canonical({"payload": payload, "reviews": [review.model_dump(mode="json") for review in state.reviews[-2:]]}))
+            signature = _sha256(_canonical({"gap_ids": state.gap_ids, "verification_ids": state.verification_ids, "hypothesis_ids": state.hypothesis_ids, "experiment_ids": state.experiment_ids, "evaluation_ids": state.evaluation_ids, "latest_review": state.reviews[-1].model_dump(mode="json")}))
             state.progress_signatures.append(signature)
             repeats = sum(1 for item in state.progress_signatures if item == signature)
             state.iteration += 1
@@ -199,24 +201,50 @@ class AutonomousController:
 
 def _identity(name: str) -> StageCallable:
     def runner(payload: dict[str, Any]) -> dict[str, Any]:
-        refs = list(payload.get("provenance_refs", [])); refs.append(f"stage:{name}")
-        result: dict[str, Any] = {"stage": name, "input": payload, "provenance_refs": sorted(set(refs))}
+        refs = list(payload.get("provenance_refs", [])); refs.append(f"offline-smoke:{name}")
+        result: dict[str, Any] = {"stage": name, "provenance_refs": sorted(set(refs)), "smoke_test": True}
         if name == "evaluate":
             result["evaluation_ids"] = [f"evaluation:{hashlib.sha256(_canonical(payload).encode('utf-8')).hexdigest()[:16]}"]
         return result
     return runner
 
 
-def _build_default_controller(state_db: Path) -> AutonomousController:
+def load_callable_adapters(manifest: Path) -> list[StageAdapter]:
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or not isinstance(payload.get("stages"), dict):
+        raise ValueError("Adapter manifest requires a stages object")
+    required = {"gap", "verify", "hypothesis", "execute", "evaluate", "report"}
+    missing = sorted(required - set(payload["stages"]))
+    if missing:
+        raise ValueError(f"Adapter manifest missing stages: {missing}")
+    adapters: list[StageAdapter] = []
+    for name in sorted(required):
+        target = payload["stages"][name]
+        if not isinstance(target, str) or ":" not in target:
+            raise ValueError(f"Stage {name!r} must be a module:function reference")
+        module_name, function_name = target.split(":", 1)
+        function = getattr(importlib.import_module(module_name), function_name, None)
+        if not callable(function):
+            raise ValueError(f"Stage adapter is not callable: {target}")
+        adapters.append(StageAdapter(name, function))
+    return adapters
+
+
+def _build_controller(state_db: Path, adapters: list[StageAdapter]) -> AutonomousController:
     store = SQLiteRunStore(state_db)
-    adapters = [StageAdapter(name, _identity(name)) for name in ("gap", "verify", "hypothesis", "execute", "evaluate", "report")]
-    panel = ReviewPanel([DeterministicReviewer("reviewer-structural"), DeterministicReviewer("reviewer-provenance")])
+    panel = ReviewPanel([ProvenanceReviewer(), ScientificIntegrityReviewer()])
     return AutonomousController(store, adapters, reviewers=panel)
 
 
 @app.command()
-def run(run_id: str = typer.Option(...), state_db: Path = typer.Option(Path("artifacts/autonomy.sqlite")), input_file: Path = typer.Option(..., exists=True, readable=True), max_iterations: int = typer.Option(3, min=1, max=100), output: Path = typer.Option(...)) -> None:
-    controller = _build_default_controller(state_db)
+def run(run_id: str = typer.Option(...), state_db: Path = typer.Option(Path("artifacts/autonomy.sqlite")), input_file: Path = typer.Option(..., exists=True, readable=True), output: Path = typer.Option(...), adapters_file: Path | None = typer.Option(None), max_iterations: int = typer.Option(3, min=1, max=100), offline_smoke_test: bool = typer.Option(False)) -> None:
+    if offline_smoke_test:
+        adapters = [StageAdapter(name, _identity(name)) for name in ("gap", "verify", "hypothesis", "execute", "evaluate", "report")]
+    elif adapters_file is None:
+        raise typer.BadParameter("--adapters-file is required unless --offline-smoke-test is explicitly enabled")
+    else:
+        adapters = load_callable_adapters(adapters_file)
+    controller = _build_controller(state_db, adapters)
     if controller.store.load(run_id) is None:
         controller.create(run_id, AutonomousRunConfig(max_iterations=max_iterations))
     payload = json.loads(input_file.read_text(encoding="utf-8"))
@@ -228,8 +256,14 @@ def run(run_id: str = typer.Option(...), state_db: Path = typer.Option(Path("art
 
 
 @app.command()
-def resume(run_id: str = typer.Option(...), state_db: Path = typer.Option(Path("artifacts/autonomy.sqlite")), output: Path = typer.Option(...)) -> None:
-    controller = _build_default_controller(state_db)
+def resume(run_id: str = typer.Option(...), state_db: Path = typer.Option(Path("artifacts/autonomy.sqlite")), output: Path = typer.Option(...), adapters_file: Path | None = typer.Option(None), offline_smoke_test: bool = typer.Option(False)) -> None:
+    if offline_smoke_test:
+        adapters = [StageAdapter(name, _identity(name)) for name in ("gap", "verify", "hypothesis", "execute", "evaluate", "report")]
+    elif adapters_file is None:
+        raise typer.BadParameter("--adapters-file is required unless --offline-smoke-test is explicitly enabled")
+    else:
+        adapters = load_callable_adapters(adapters_file)
+    controller = _build_controller(state_db, adapters)
     state = controller.resume(run_id)
     report = build_autonomous_report(state)
     output.parent.mkdir(parents=True, exist_ok=True)
