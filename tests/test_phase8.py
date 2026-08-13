@@ -11,7 +11,7 @@ from agentic_research.evaluation.engine import evaluate_extraction, evaluate_lab
 from agentic_research.evaluation.human import evaluate_human_ratings
 from agentic_research.evaluation.metrics import average_precision_at_k, bootstrap_mean_ci, cohen_kappa, macro_field_f1, ndcg_at_k, temporal_leakage
 from agentic_research.evaluation.report import build_report
-from agentic_research.evaluation.validation import validate_split_disjointness
+from agentic_research.evaluation.validation import validate_prediction_coverage, validate_split_disjointness
 from agentic_research.schemas.phase8 import AblationSpec, BenchmarkCase, BenchmarkResult, CostRecord, HumanRating, PredictionRecord
 
 
@@ -41,11 +41,19 @@ def test_retrieval_benchmark_runs() -> None:
     assert {metric.name for metric in result.metrics} >= {"mrr", "ndcg@10"}
 
 
+def test_prediction_integrity_rejects_unknown_and_duplicate_ids() -> None:
+    cases = [retrieval_case("c1")]
+    with pytest.raises(ValueError):
+        validate_prediction_coverage(cases, [PredictionRecord(case_id="unknown")])
+    with pytest.raises(ValueError):
+        validate_prediction_coverage(cases, [PredictionRecord(case_id="c1"), PredictionRecord(case_id="c1")])
+
+
 def test_extraction_and_label_benchmarks() -> None:
     case = BenchmarkCase(case_id="c1", kind="extraction", input_hash=h("c1"), expected_fields={"method": "M"})
     extraction = evaluate_extraction([case], [PredictionRecord(case_id="c1", extracted_fields={"method": "M"})], system_name="test", benchmark_id="e")
     assert extraction.metrics[0].value == 1.0
-    assert macro_field_f1([{"method": "M improves RAG"}], [{"method": "M improves retrieval"}]) > 0.5
+    assert macro_field_f1([{"method": "M improves RAG"}], [{"method": "M improves retrieval"}]) == 0.0
     gap_case = BenchmarkCase(case_id="g1", kind="gap", input_hash=h("g1"), expected_labels=["positive"])
     labels = evaluate_labels([gap_case], [PredictionRecord(case_id="g1", predicted_labels=["positive"])], kind="gap", system_name="test", benchmark_id="g")
     assert labels.metrics[0].value == 1.0
@@ -69,13 +77,15 @@ def test_split_integrity_rejects_cross_split_input_overlap() -> None:
         validate_split_disjointness({"train": [train], "test": [test]})
 
 
-def test_human_agreement_requires_two_annotators() -> None:
+def test_human_agreement_requires_two_annotators_and_unique_ratings() -> None:
     ratings = [HumanRating(case_id="1", annotator_id="a", label="good"), HumanRating(case_id="1", annotator_id="b", label="good")]
     result = evaluate_human_ratings(ratings, evaluation_id="h1", task="gap_quality")
     assert result.annotator_count == 2
     assert cohen_kappa(["good", "bad"], ["good", "bad"]) == pytest.approx(1.0)
     with pytest.raises(ValueError):
         evaluate_human_ratings([HumanRating(case_id="1", annotator_id="a", label="good")], evaluation_id="h2", task="gap_quality")
+    with pytest.raises(ValueError):
+        evaluate_human_ratings([HumanRating(case_id="1", annotator_id="a", label="good"), HumanRating(case_id="1", annotator_id="a", label="bad")], evaluation_id="h3", task="gap_quality")
 
 
 def test_baseline_direction_and_ablation() -> None:
@@ -111,4 +121,5 @@ def test_cli_surface() -> None:
     assert result.exit_code == 0
     assert "retrieval" in result.stdout
     assert "temporal" in result.stdout
+    assert "split-validate" in result.stdout
     assert "report" in result.stdout
