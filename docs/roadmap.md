@@ -71,8 +71,11 @@
 - [x] gap benchmark
 - [x] novelty benchmark
 - [x] dedicated temporal benchmark and leakage accounting
-- [x] multi-rater human evaluation
+- [x] train/dev/test split-contamination validation
+- [x] prediction case-ID coverage validation
+- [x] multi-rater human evaluation and duplicate-rating protection
 - [x] baseline comparison with explicit metric direction
+- [x] baseline reproducibility contract with Phase 7 execution boundary
 - [x] ablation comparison
 - [x] cost/compute accounting
 - [x] deterministic bootstrap confidence intervals
