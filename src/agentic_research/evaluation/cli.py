@@ -12,6 +12,7 @@ from agentic_research.evaluation.comparison import compare_baselines, evaluate_a
 from agentic_research.evaluation.engine import evaluate_extraction, evaluate_labels, evaluate_retrieval, evaluate_temporal
 from agentic_research.evaluation.human import evaluate_human_ratings
 from agentic_research.evaluation.report import build_report
+from agentic_research.evaluation.splits import validate_split_disjointness
 from agentic_research.schemas.phase8 import AblationSpec, BenchmarkCase, CostRecord, HumanRating, PredictionRecord
 
 app = typer.Typer(help="Agentic-Research Phase 8 evaluation and benchmarking.")
@@ -48,6 +49,14 @@ def classification(cases: Path = typer.Option(..., exists=True, readable=True), 
 @app.command()
 def temporal(cases: Path = typer.Option(..., exists=True, readable=True), predictions: Path = typer.Option(..., exists=True, readable=True), output: Path = typer.Option(...), system_name: str = typer.Option(...)) -> None:
     _write(output, evaluate_temporal(_read_json_list(cases, BenchmarkCase), _read_json_list(predictions, PredictionRecord), system_name=system_name, benchmark_id="temporal").model_dump(mode="json"))
+
+
+@app.command()
+def split_validate(dev: Path = typer.Option(..., exists=True, readable=True), test: Path = typer.Option(..., exists=True, readable=True), output: Path = typer.Option(...)) -> None:
+    """Validate that dev/test cases are disjoint by case ID and input hash."""
+    splits = {"dev": _read_json_list(dev, BenchmarkCase), "test": _read_json_list(test, BenchmarkCase)}
+    validate_split_disjointness(splits)
+    _write(output, {"status": "ok", "counts": {name: len(cases) for name, cases in splits.items()}})
 
 
 @app.command()
