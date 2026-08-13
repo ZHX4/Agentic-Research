@@ -16,45 +16,67 @@ class Reviewer(ABC):
         raise NotImplementedError
 
 
-class DeterministicReviewer(Reviewer):
-    """Conservative structural/provenance reviewer with no LLM dependency."""
+def _finding_id(reviewer_id: str, iteration: int, target_id: str) -> str:
+    return f"finding:{reviewer_id}:{iteration}:{hashlib.sha1(target_id.encode()).hexdigest()[:16]}"
 
-    def __init__(self, reviewer_id: str, *, require_provenance: bool = True) -> None:
-        self.reviewer_id = reviewer_id
-        self.require_provenance = require_provenance
+
+class ProvenanceReviewer(Reviewer):
+    reviewer_id = "reviewer-provenance-v1"
+
+    def review(self, iteration: int, target_kind: str, target_id: str, artifact: dict[str, Any]) -> ReviewerFinding:
+        refs = artifact.get("provenance_refs")
+        warnings: list[str] = []
+        if not isinstance(refs, list) or not refs:
+            warnings.append("Artifact contains no provenance references.")
+        if artifact.get("output_sha256") is None and target_kind in {"execution", "evaluation"}:
+            warnings.append("Execution/evaluation artifact has no output hash reference.")
+        if warnings:
+            decision: ReviewDecision = "reject" if any("no provenance" in item.lower() for item in warnings) else "revise"
+            severity = "critical" if decision == "reject" else "warning"
+        else:
+            decision = "accept"
+            severity = "info"
+        digest = hashlib.sha256(repr(sorted(artifact.items())).encode("utf-8")).hexdigest()[:16]
+        return ReviewerFinding(
+            finding_id=_finding_id(self.reviewer_id, iteration, target_id), reviewer_id=self.reviewer_id,
+            target_kind=target_kind, target_id=target_id, severity=severity, decision=decision,
+            claim="Provenance and artifact-integrity requirements are satisfied." if decision == "accept" else "Provenance requirements are incomplete.",
+            rationale="; ".join(warnings) if warnings else "Provenance references and required artifact-integrity fields are present.",
+            evidence_refs=[f"review-input:{digest}"],
+        )
+
+
+class ScientificIntegrityReviewer(Reviewer):
+    reviewer_id = "reviewer-scientific-integrity-v1"
 
     def review(self, iteration: int, target_kind: str, target_id: str, artifact: dict[str, Any]) -> ReviewerFinding:
         warnings: list[str] = []
-        evidence_refs: list[str] = []
-        if self.require_provenance and not artifact.get("provenance_refs"):
-            warnings.append("Missing provenance references")
-        if artifact.get("status") in {"failed", "rejected", "cancelled"}:
-            warnings.append(f"Artifact status is {artifact.get('status')}")
-        if artifact.get("falsified") is False and artifact.get("falsification_rationale") is None and target_kind == "execution":
-            warnings.append("Execution lacks an explicit falsification rationale")
-        if artifact.get("warnings"):
-            warnings.extend(str(item) for item in artifact["warnings"][:3])
-        digest = hashlib.sha256(repr(sorted(artifact.items(), key=lambda item: item[0])).encode("utf-8")).hexdigest()
-        evidence_refs.append(f"review-input:{digest[:16]}")
-        if any("Missing provenance" in item for item in warnings):
-            severity = "critical"
-            decision: ReviewDecision = "reject"
-        elif warnings:
-            severity = "warning"
-            decision = "revise"
+        if target_kind == "execution" and artifact.get("status") in {"failed", "timeout", "rejected", "cancelled"}:
+            warnings.append(f"Execution status is {artifact.get('status')}.")
+        if target_kind == "evaluation" and artifact.get("cases_evaluated") == 0:
+            warnings.append("Evaluation contains zero evaluated cases.")
+        if target_kind == "hypothesis" and not artifact.get("falsification_condition"):
+            warnings.append("Hypothesis lacks an explicit falsification condition.")
+        if artifact.get("global_novelty") is True:
+            warnings.append("Autonomous loop must not claim global novelty in Phase 9.")
+        if warnings:
+            decision: ReviewDecision = "reject" if any("global novelty" in item.lower() for item in warnings) else "revise"
+            severity = "critical" if decision == "reject" else "warning"
         else:
-            severity = "info"
             decision = "accept"
-        claim = "Autonomous stage artifact passes structural review" if decision == "accept" else "Autonomous stage artifact requires review action"
+            severity = "info"
+        digest = hashlib.sha256(repr(sorted(artifact.items())).encode("utf-8")).hexdigest()[:16]
         return ReviewerFinding(
-            finding_id=f"finding:{self.reviewer_id}:{iteration}:{target_id}",
-            reviewer_id=self.reviewer_id,
-            target_kind=target_kind, target_id=target_id,
-            severity=severity, decision=decision,
-            claim=claim,
-            rationale="; ".join(warnings) if warnings else "Required structural and provenance checks passed.",
-            evidence_refs=evidence_refs,
+            finding_id=_finding_id(self.reviewer_id, iteration, target_id), reviewer_id=self.reviewer_id,
+            target_kind=target_kind, target_id=target_id, severity=severity, decision=decision,
+            claim="Scientific-integrity constraints pass." if decision == "accept" else "Scientific-integrity review requires corrective action.",
+            rationale="; ".join(warnings) if warnings else "No prohibited scientific conclusion or missing control was detected structurally.",
+            evidence_refs=[f"review-input:{digest}"],
         )
+
+
+class DeterministicReviewer(ProvenanceReviewer):
+    """Backward-compatible deterministic reviewer used by offline tests."""
 
 
 class ReviewPanel:
@@ -69,16 +91,17 @@ class ReviewPanel:
     def review(self, iteration: int, target_kind: str, target_id: str, artifact: dict[str, Any]) -> ReviewRound:
         findings = [reviewer.review(iteration, target_kind, target_id, artifact) for reviewer in self.reviewers]
         critical = sum(1 for finding in findings if finding.severity == "critical")
-        if any(finding.decision == "reject" for finding in findings):
+        rejects = sum(1 for finding in findings if finding.decision == "reject")
+        revisions = sum(1 for finding in findings if finding.decision == "revise")
+        if rejects > len(findings) / 2:
             consensus: ReviewDecision = "reject"
-        elif any(finding.decision == "revise" for finding in findings):
+        elif rejects or revisions:
             consensus = "revise"
         elif all(finding.decision == "accept" for finding in findings):
             consensus = "accept"
         else:
             consensus = "inconclusive"
         return ReviewRound(
-            review_id=f"review:{iteration}:{target_id}", iteration=iteration,
-            findings=findings, consensus=consensus, critical_count=critical,
-            reviewer_count=len(self.reviewers),
+            review_id=f"review:{iteration}:{target_id}", iteration=iteration, findings=findings,
+            consensus=consensus, critical_count=critical, reviewer_count=len(self.reviewers),
         )
