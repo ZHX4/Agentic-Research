@@ -83,12 +83,18 @@
 - [x] dedicated evaluation CLI
 - [x] offline regression tests
 
-## Phase 9 — Autonomous discovery
-- closed-loop research runs
-- durable state
-- experiment checkpointing
-- independent reviewer agents
-- provenance-aware reporting
+## Phase 9 — Autonomous discovery (implemented)
+- [x] closed-loop research control plane
+- [x] durable SQLite state
+- [x] immutable checkpoint snapshots and integrity hashes
+- [x] bounded retries/iterations and no-progress stopping
+- [x] canonical Phase 4–8 stage adapter interface
+- [x] independent reviewer interface and deterministic reviewers
+- [x] provenance harvesting across stages
+- [x] deterministic run reporting
+- [x] dedicated autonomous CLI
+- [x] offline regression tests
+- [x] explicit Phase 9 / Phase 10 boundary
 
 ## Phase 10 — Publication
 - system paper
