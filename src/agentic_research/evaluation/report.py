@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from agentic_research.schemas.phase8 import AblationResult, BaselineComparison, BenchmarkResult, CostRecord, EvaluationReport, HumanEvaluationResult
+from .validation import validate_benchmark_results
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -15,6 +16,7 @@ def _load(path: Path) -> dict[str, Any]:
 
 def build_report(system_name: str, *, benchmark_files: list[Path], human_files: list[Path] | None = None, baseline_files: list[Path] | None = None, ablation_files: list[Path] | None = None, cost_files: list[Path] | None = None) -> EvaluationReport:
     benchmarks = [BenchmarkResult.model_validate(_load(path)) for path in benchmark_files]
+    validate_benchmark_results(benchmarks, system_name)
     humans = [HumanEvaluationResult.model_validate(_load(path)) for path in (human_files or [])]
     baselines = [BaselineComparison.model_validate(_load(path)) for path in (baseline_files or [])]
     ablations = [AblationResult.model_validate(_load(path)) for path in (ablation_files or [])]
