@@ -13,7 +13,12 @@ def evaluate_human_ratings(ratings: list[HumanRating], *, evaluation_id: str, ta
     if not ratings:
         raise ValueError("At least one human rating is required")
     by_case: dict[str, list[HumanRating]] = defaultdict(list)
+    seen_pairs: set[tuple[str, str]] = set()
     for rating in ratings:
+        pair = (rating.case_id, rating.annotator_id)
+        if pair in seen_pairs:
+            raise ValueError(f"Duplicate rating for case {rating.case_id!r} by annotator {rating.annotator_id!r}")
+        seen_pairs.add(pair)
         by_case[rating.case_id].append(rating)
     annotators = sorted({rating.annotator_id for rating in ratings})
     if len(annotators) < 2:
