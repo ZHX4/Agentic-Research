@@ -10,6 +10,7 @@ from .phase5 import Counterevidence, GapVerificationResult, NoveltyVerificationC
 from .phase6 import Hypothesis, HypothesisCandidate, HypothesisConfig, HypothesisReflection, HypothesisRun
 from .phase7 import ArtifactRecord, DatasetManifest, ExperimentNode, ExperimentResult, ExperimentSearchTree, ExperimentSpec, FalsificationPlan, MetricRecord, SandboxPolicy, SeedRun
 from .phase8 import AblationResult, AblationSpec, BaselineComparison, BaselineSpec, BenchmarkCase, BenchmarkResult, CostRecord, HumanEvaluationResult, HumanRating, MetricValue, PredictionRecord, EvaluationReport
+from .phase9 import AutonomousRunConfig, AutonomousRunReport, AutonomousRunState, Checkpoint, ReviewRound, ReviewerFinding, StageExecution
 
 __all__ = [
     "Paper", "Evidence", "GapCandidate", "GapStatus", "ExperimentPlan",
@@ -21,4 +22,5 @@ __all__ = [
     "DatasetManifest", "FalsificationPlan", "SandboxPolicy", "ExperimentSpec", "MetricValue", "ArtifactRecord", "SeedRun", "ExperimentResult", "ExperimentNode", "ExperimentSearchTree",
     "BenchmarkCase", "PredictionRecord", "BenchmarkResult", "HumanRating", "HumanEvaluationResult",
     "BaselineSpec", "BaselineComparison", "AblationSpec", "AblationResult", "CostRecord", "EvaluationReport",
+    "AutonomousRunConfig", "AutonomousRunState", "AutonomousRunReport", "StageExecution", "Checkpoint", "ReviewerFinding", "ReviewRound",
 ]
