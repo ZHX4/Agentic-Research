@@ -17,6 +17,8 @@ from agentic_research.schemas.phase10 import (
     ReproducibilityPackage,
 )
 
+PERMISSIVE_SPDX = {"MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "CC0-1.0", "Unlicense"}
+
 
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
@@ -24,11 +26,6 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
-
-
-def _load_json(path: Path) -> Any:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    return payload
 
 
 def _evidence_refs(payload: Any) -> list[str]:
@@ -51,7 +48,8 @@ def build_system_paper(source_commit: str, architecture: dict[str, Any]) -> Manu
         _section("4. Reproducibility and limitations", f"The publication artifact is tied to source commit `{source_commit}`. Results must be interpreted within the configured literature coverage, benchmark coverage, search budget, and execution environment; the system must not convert bounded search failure into a claim of global novelty.", refs),
     ]
     abstract = "Agentic-Research is an evidence-grounded autonomous research-agent architecture designed to discover, challenge, execute, and evaluate scientific hypotheses while preserving provenance and reproducibility across stages."
-    return Manuscript(manuscript_id=f"system-paper:{source_commit[:12]}", kind="system_paper", title="Agentic-Research: An Evidence-Grounded Autonomous Scientific Research System", abstract=abstract, sections=sections, evidence_refs=refs or [f"source-commit:{source_commit}"], status="draft")
+    status = "ready" if refs else "blocked"
+    return Manuscript(manuscript_id=f"system-paper:{source_commit[:12]}", kind="system_paper", title="Agentic-Research: An Evidence-Grounded Autonomous Scientific Research System", abstract=abstract, sections=sections, evidence_refs=refs, status=status)
 
 
 def build_benchmark_paper(evaluation_report: dict[str, Any]) -> Manuscript:
@@ -92,10 +90,14 @@ def build_artifact_entry(path: Path, kind: str, artifact_id: str, license_spdx: 
 def audit_licenses(artifacts: list[ArtifactManifestEntry]) -> list[LicenseAuditEntry]:
     results: list[LicenseAuditEntry] = []
     for artifact in artifacts:
-        if not artifact.license_spdx:
-            results.append(LicenseAuditEntry(artifact_id=artifact.artifact_id, license_spdx=None, source=artifact.source, status="review", reason="No SPDX license identifier supplied; manual verification required."))
+        spdx = artifact.license_spdx
+        if not spdx:
+            status, reason = "review", "No SPDX license identifier supplied; manual verification required."
+        elif spdx in PERMISSIVE_SPDX:
+            status, reason = "pass", f"SPDX {spdx} is in the configured permissive-license allowlist; verify attribution and venue-specific requirements separately."
         else:
-            results.append(LicenseAuditEntry(artifact_id=artifact.artifact_id, license_spdx=artifact.license_spdx, source=artifact.source, status="pass", reason="SPDX identifier was explicitly supplied by the release manifest; verify compatibility with the intended venue and redistribution terms."))
+            status, reason = "review", f"SPDX {spdx} is not in the configured automatic-pass allowlist; manual compatibility review required."
+        results.append(LicenseAuditEntry(artifact_id=artifact.artifact_id, license_spdx=spdx, source=artifact.source, status=status, reason=reason))
     return results
 
 
@@ -107,7 +109,7 @@ def build_reproducibility_package(source_commit: str, artifacts: list[ArtifactMa
 def build_publication_bundle(source_commit: str, architecture: dict[str, Any], evaluation_report: dict[str, Any], case_study: dict[str, Any], disclosure: list[ModelProviderDisclosure], reproducibility: ReproducibilityPackage) -> PublicationBundle:
     manuscripts = [build_system_paper(source_commit, architecture), build_benchmark_paper(evaluation_report), build_case_study(case_study)]
     audits = audit_licenses(reproducibility.artifacts)
-    blocking = [item for item in manuscripts if item.status != "ready"] or [item for item in audits if item.status != "pass"]
+    blocking = [item for item in manuscripts if item.status != "ready"] + [item for item in audits if item.status != "pass"]
     status = "blocked" if blocking else "ready"
     warnings = ["Publication bundle remains non-ready until every manuscript has evidence and every artifact has an audited license."] if blocking else []
     bundle_id = hashlib.sha256(json.dumps({"source_commit": source_commit, "manuscripts": [m.model_dump(mode="json") for m in manuscripts], "artifacts": [a.model_dump(mode="json") for a in reproducibility.artifacts]}, sort_keys=True).encode("utf-8")).hexdigest()[:20]
