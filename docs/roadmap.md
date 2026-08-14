@@ -96,12 +96,16 @@
 - [x] offline regression tests
 - [x] explicit Phase 9 / Phase 10 boundary
 
-## Phase 10 — Publication
-- system paper
-- benchmark paper
-- validated discovery case study
-- reproducibility package
-- model/provider disclosure
-- licensing audit
+## Phase 10 — Publication (implemented)
+- [x] system paper
+- [x] benchmark paper
+- [x] validated discovery case study
+- [x] reproducibility package
+- [x] model/provider disclosure
+- [x] licensing audit
+- [x] evidence-gated publication readiness
+- [x] artifact SHA-256 integrity manifest
+- [x] dedicated publication CLI
+- [x] publication acceptance checklist and regression tests
 
 > Live GitHub Actions execution can be unavailable when the GitHub account is billing-locked. Phase acceptance does not claim a CI pass unless GitHub actually started the job.
