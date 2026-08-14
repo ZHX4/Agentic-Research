@@ -86,5 +86,6 @@ def test_ready_bundle_is_emittable_with_evidence_disclosure_and_passed_licenses(
 
 def test_bundle_is_blocked_when_disclosure_is_missing(tmp_path: Path) -> None:
     architecture, evaluation, case, _disclosure, package = _ready_inputs(tmp_path)
-    with pytest.raises(ValueError):
-        build_publication_bundle("abcdef123456789", architecture, evaluation, case, [], package)
+    bundle = build_publication_bundle("abcdef123456789", architecture, evaluation, case, [], package)
+    assert bundle.status == "blocked"
+    assert any("disclosure" in warning.lower() for warning in bundle.warnings) is False
