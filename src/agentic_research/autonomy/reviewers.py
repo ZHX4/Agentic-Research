@@ -102,6 +102,6 @@ class ReviewPanel:
         else:
             consensus = "inconclusive"
         return ReviewRound(
-            review_id=f"review:{iteration}:{target_id}", iteration=iteration, findings=findings,
+            review_id=f"review:{iteration}:{target_kind}:{target_id}", iteration=iteration, findings=findings,
             consensus=consensus, critical_count=critical, reviewer_count=len(self.reviewers),
         )
