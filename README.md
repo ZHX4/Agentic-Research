@@ -1,8 +1,8 @@
 # Agentic-Research
 
-An evidence-grounded research-agent system for scientific literature intelligence, gap discovery, adversarial novelty verification, hypothesis reasoning, reproducible experimental validation, rigorous evaluation, and bounded autonomous research control.
+An evidence-grounded research-agent system for scientific literature intelligence, gap discovery, adversarial novelty verification, hypothesis reasoning, reproducible experimental validation, rigorous evaluation, bounded autonomous research control, and publication packaging.
 
-> **Status:** Phase 9 implemented. Phases 0–9 are complete; Phase 10 remains publication-focused.
+> **Status:** Phases 0–10 are implemented. Phase 10 provides publication-focused release packaging; publication of a real scientific paper still requires actual research artifacts, benchmark results, human evaluation where applicable, venue requirements, and manual scientific/editorial review.
 
 ## Research objective
 
@@ -32,19 +32,50 @@ agentic-research-autonomous resume \
   --output artifacts/phase9-report.json
 ```
 
-Phase 9 provides durable SQLite run state, immutable checkpoint snapshots, SHA-256 integrity checks, bounded retries and iterations, no-progress stopping, independent reviewer panels, provenance harvesting, and deterministic reporting.
+Phase 9 provides durable SQLite run state, immutable checkpoint snapshots, SHA-256 integrity checks, bounded retries and iterations, no-progress stopping, independent reviewer panels, provenance harvesting, and deterministic reporting. Production runs inject `StageAdapter` implementations connected to the canonical Phase 4–8 services; deterministic identity adapters are restricted to explicit smoke-test mode.
 
-The bundled CLI uses deterministic identity adapters as a control-plane smoke path. Production runs inject `StageAdapter` implementations connected to the canonical Phase 4–8 services.
+## Phase 10: publication
+
+```bash
+agentic-research-publication manifest \
+  --source-commit <commit> \
+  --artifacts <path> \
+  --kinds result \
+  --licenses MIT \
+  --output artifacts/publication/repro.json
+
+agentic-research-publication audit-license \
+  --manifest-file artifacts/publication/repro.json \
+  --output artifacts/publication/license-audit.json
+
+agentic-research-publication write-manuscripts \
+  --source-commit <commit> \
+  --architecture artifacts/publication/architecture.json \
+  --evaluation artifacts/evaluation/report.json \
+  --case-study artifacts/publication/case-study.json \
+  --output-dir artifacts/publication/manuscripts
+
+agentic-research-publication bundle \
+  --source-commit <commit> \
+  --architecture artifacts/publication/architecture.json \
+  --evaluation artifacts/evaluation/report.json \
+  --case-study artifacts/publication/case-study.json \
+  --disclosure artifacts/publication/disclosure.json \
+  --reproducibility artifacts/publication/repro.json \
+  --output artifacts/publication/bundle.json
+```
+
+Phase 10 provides evidence-gated manuscript generation, validated discovery case-study packaging, reproducibility manifests, model/provider disclosure, SPDX-aware licensing review, release-time artifact hash verification, and publication-readiness checks.
 
 ## Scientific integrity guarantees
 
-1. Phase 9 does not duplicate the scientific logic of Phases 4–8.
-2. Run state and checkpoint snapshots are tamper-evident.
-3. Iterations, retries, and no-progress loops are bounded.
-4. Critical reviewer findings can stop a run.
-5. Stage outputs retain hashes and provenance references.
-6. Final reports are deterministic from durable state.
-7. Phase 9 does not publish or release research artifacts.
+1. Phases communicate through explicit schemas and persisted artifacts rather than hidden conversational state.
+2. Temporal cutoffs and provenance are preserved through literature, novelty, evaluation, execution, and autonomous stages.
+3. Phase 5 does not convert bounded search failure into global novelty.
+4. Phase 7 uses reproducible code/dataset manifests, integrity hashes, sandboxing, multi-seed execution, and explicit falsification criteria.
+5. Phase 8 enforces benchmark split integrity, prediction coverage, metric direction, human-rating constraints, and deterministic evaluation reports.
+6. Phase 9 uses durable state, bounded loops, stage-specific review, critical-stop policy, and tamper-evident checkpoints.
+7. Phase 10 never invents scientific results and blocks release when required evidence, disclosure, or licensing checks are missing.
 
 ## Repository layout
 
@@ -57,15 +88,17 @@ src/agentic_research/
   gaps/          Phase 4 gap discovery
   verification/ Phase 5 novelty verification
   hypotheses/    Phase 6 hypothesis reasoning
-  execution/     Phase 7 scientific execution
+  execution/    Phase 7 scientific execution
   evaluation/   Phase 8 benchmarks and evaluation
-  autonomy/      Phase 9 durable autonomous control
-  schemas/       canonical scientific contracts
-  agents/        provider-independent agent contracts
+  autonomy/     Phase 9 durable autonomous control
+  publication/  Phase 10 publication and release packaging
+  schemas/      canonical scientific contracts
+  agents/       provider-independent agent contracts
 
 docs/            architecture, phase gates, roadmap
 configs/         reproducible configuration
 tests/           unit and offline integration tests
+data/demo/      small deterministic demo inputs
 ```
 
 ## Quick start
@@ -84,6 +117,7 @@ agentic-research-hypotheses --help
 agentic-research-execution --help
 agentic-research-evaluation --help
 agentic-research-autonomous --help
+agentic-research-publication --help
 ```
 
 ## Phase gates
@@ -98,4 +132,8 @@ agentic-research-autonomous --help
 - [x] [Phase 7](docs/phase-7.md)
 - [x] [Phase 8](docs/phase-8.md)
 - [x] [Phase 9](docs/phase-9.md)
-- [ ] Phase 10
+- [x] [Phase 10](docs/phase-10.md)
+
+## Quality gate
+
+GitHub Actions is configured to run installation, Ruff linting, Ruff formatting checks, mypy, and pytest on pushes to `main` and pull requests. A project release should be considered execution-verified only after those checks have actually run and passed on GitHub.
