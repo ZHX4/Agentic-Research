@@ -110,7 +110,9 @@ def build_publication_bundle(source_commit: str, architecture: dict[str, Any], e
     manuscripts = [build_system_paper(source_commit, architecture), build_benchmark_paper(evaluation_report), build_case_study(case_study)]
     audits = audit_licenses(reproducibility.artifacts)
     blocking = [item for item in manuscripts if item.status != "ready"] + [item for item in audits if item.status != "pass"]
+    if not disclosure:
+        blocking.append("missing-model-provider-disclosure")
     status = "blocked" if blocking else "ready"
-    warnings = ["Publication bundle remains non-ready until every manuscript has evidence and every artifact has an audited license."] if blocking else []
-    bundle_id = hashlib.sha256(json.dumps({"source_commit": source_commit, "manuscripts": [m.model_dump(mode="json") for m in manuscripts], "artifacts": [a.model_dump(mode="json") for a in reproducibility.artifacts]}, sort_keys=True).encode("utf-8")).hexdigest()[:20]
+    warnings = ["Publication bundle remains non-ready until every manuscript has evidence, model/provider disclosure exists, and every artifact has an audited license."] if blocking else []
+    bundle_id = hashlib.sha256(json.dumps({"source_commit": source_commit, "manuscripts": [m.model_dump(mode="json") for m in manuscripts], "artifacts": [a.model_dump(mode="json") for a in reproducibility.artifacts], "disclosure": [d.model_dump(mode="json") for d in disclosure]}, sort_keys=True).encode("utf-8")).hexdigest()[:20]
     return PublicationBundle(bundle_id=f"publication:{bundle_id}", status=status, manuscripts=manuscripts, disclosure=disclosure, license_audit=audits, reproducibility=reproducibility, warnings=warnings)
