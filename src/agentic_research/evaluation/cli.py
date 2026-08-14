@@ -12,7 +12,7 @@ from agentic_research.evaluation.comparison import compare_baselines, evaluate_a
 from agentic_research.evaluation.engine import evaluate_extraction, evaluate_labels, evaluate_retrieval, evaluate_temporal
 from agentic_research.evaluation.human import evaluate_human_ratings
 from agentic_research.evaluation.report import build_report
-from agentic_research.evaluation.splits import validate_split_disjointness
+from agentic_research.evaluation.validation import validate_split_disjointness
 from agentic_research.schemas.phase8 import AblationSpec, BenchmarkCase, CostRecord, HumanRating, PredictionRecord
 
 app = typer.Typer(help="Agentic-Research Phase 8 evaluation and benchmarking.")
@@ -66,8 +66,16 @@ def human(ratings: Path = typer.Option(..., exists=True, readable=True), output:
 
 @app.command()
 def baseline(primary: Path = typer.Option(..., exists=True, readable=True), baselines: Path = typer.Option(..., exists=True, readable=True), output: Path = typer.Option(...), primary_name: str = typer.Option(...), comparison_id: str = typer.Option(...), metric_name: str | None = typer.Option(None), direction: Literal["higher", "lower"] = typer.Option("higher")) -> None:
-    primary_payload = json.loads(primary.read_text(encoding="utf-8")); baseline_payload = json.loads(baselines.read_text(encoding="utf-8"))
-    result = compare_baselines(primary_name, {str(k): float(v) for k, v in primary_payload.items()}, {str(name): {str(k): float(v) for k, v in values.items()} for name, values in baseline_payload.items()}, comparison_id=comparison_id, metric_name=metric_name, direction=direction)
+    primary_payload = json.loads(primary.read_text(encoding="utf-8"))
+    baseline_payload = json.loads(baselines.read_text(encoding="utf-8"))
+    result = compare_baselines(
+        primary_name,
+        {str(k): float(v) for k, v in primary_payload.items()},
+        {str(name): {str(k): float(v) for k, v in values.items()} for name, values in baseline_payload.items()},
+        comparison_id=comparison_id,
+        metric_name=metric_name,
+        direction=direction,
+    )
     _write(output, result.model_dump(mode="json"))
 
 
