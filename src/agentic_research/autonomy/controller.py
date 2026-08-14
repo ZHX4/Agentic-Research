@@ -147,7 +147,8 @@ class AutonomousController:
             review_artifact["stage_id"] = execution.stage_id
             review_artifact["input_sha256"] = execution.input_sha256
             review_artifact["provenance_refs"] = sorted(set([*review_artifact.get("provenance_refs", []), *state.provenance_refs]))
-            target_id = target_ids[0] if len(target_ids) == 1 else f"{stage}:{_sha256(_canonical({"ids": target_ids}))[:16]}"
+            canonical_target = _canonical({"ids": target_ids})
+            target_id = target_ids[0] if len(target_ids) == 1 else f"{stage}:{_sha256(canonical_target)[:16]}"
             review_round = self.reviewers.review(state.iteration, target_kind, target_id, review_artifact)
             rounds.append(review_round)
             state.provenance_refs.extend(ref for finding in review_round.findings for ref in finding.evidence_refs)
@@ -265,7 +266,7 @@ def _identity(name: str) -> StageCallable:
         elif name == "execute":
             result["experiment_ids"] = [f"experiment:{hashlib.sha256(_canonical(payload).encode('utf-8')).hexdigest()[:16]}"]
         elif name == "evaluate":
-            result["evaluation_ids"] = [f"evaluation:{hashlib.sha256(_canonical(payload).encode('utf-8')).hexdigest()[:16]}"]
+            result["evaluation_ids"] = [f"evaluation:{hashlib.sha256(_canonical(payload).encode('utf-8')).hexdigest()[:16]"]
             result["cases_evaluated"] = 1
         return result
     return runner
