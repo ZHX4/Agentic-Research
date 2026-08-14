@@ -1,18 +1,22 @@
 # Phase 10 Acceptance Checklist
 
 - [x] Phase 10 schema contracts exist and reject unknown fields.
-- [x] System-paper builder exists.
-- [x] Benchmark-paper builder exists.
-- [x] Validated case-study builder requires verification/hypothesis/execution/evaluation.
+- [x] System-paper builder exists and requires architecture evidence.
+- [x] Benchmark-paper builder exists and blocks without substantive benchmark results.
+- [x] Validated discovery case-study builder requires non-empty verification/hypothesis/execution/evaluation records.
 - [x] Publication-ready manuscripts require evidence references.
+- [x] Every ready manuscript section carries evidence references.
 - [x] Reproducibility package records source commit and artifact SHA-256 hashes.
+- [x] Reproducibility package requires at least one artifact and one reproduction command.
 - [x] Artifact size is recorded.
 - [x] Model/provider disclosure is a structured artifact.
+- [x] Publication readiness is blocked when disclosure is missing.
 - [x] License audit distinguishes automatic pass from manual review.
 - [x] Missing SPDX license never becomes an automatic pass.
+- [x] Only the configured permissive SPDX allowlist receives automatic pass.
 - [x] Publication bundle refuses readiness when required manuscripts are blocked.
 - [x] Publication bundle refuses readiness when any license audit is not pass.
 - [x] Dedicated publication CLI exists.
-- [x] Regression tests cover readiness and licensing failure modes.
+- [x] Regression tests cover readiness, substantive-result, disclosure, hashing, and licensing failure modes.
 - [x] Phase 10 does not modify scientific results or claim global novelty.
 - [x] Reproducibility commands and environment-lock reference are preserved.
