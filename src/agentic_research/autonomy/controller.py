@@ -13,7 +13,7 @@ import typer
 
 from agentic_research.schemas.phase9 import AutonomousRunConfig, AutonomousRunReport, AutonomousRunState, Checkpoint, StageExecution
 
-from .reviewers import DeterministicReviewer, ProvenanceReviewer, ReviewPanel, ScientificIntegrityReviewer
+from .reviewers import ProvenanceReviewer, ReviewPanel, ScientificIntegrityReviewer
 from .state_store import SQLiteRunStore
 
 StageName = Literal["gap", "verify", "hypothesis", "execute", "evaluate", "review", "report"]
@@ -64,6 +64,13 @@ class AutonomousController:
     """Resumable, bounded autonomous loop with atomic state/checkpoints."""
 
     ORDER: tuple[StageName, ...] = ("gap", "verify", "hypothesis", "execute", "evaluate", "review", "report")
+    REVIEW_STAGE_TARGETS: tuple[tuple[StageName, str], ...] = (
+        ("gap", "gap"),
+        ("verify", "verification"),
+        ("hypothesis", "hypothesis"),
+        ("execute", "execution"),
+        ("evaluate", "evaluation"),
+    )
 
     def __init__(self, store: SQLiteRunStore, adapters: list[StageAdapter], *, reviewers: ReviewPanel) -> None:
         self.store = store
@@ -98,6 +105,54 @@ class AutonomousController:
         for target in (state.gap_ids, state.verification_ids, state.hypothesis_ids, state.experiment_ids, state.evaluation_ids, state.provenance_refs):
             target[:] = sorted(set(target))
 
+    def _stage_execution(self, state: AutonomousRunState, stage: StageName) -> StageExecution | None:
+        return next(
+            (item for item in reversed(state.stage_executions) if item.iteration == state.iteration and item.stage == stage and item.status == "succeeded"),
+            None,
+        )
+
+    def _load_stage_artifact(self, execution: StageExecution) -> dict[str, Any]:
+        if not execution.output_artifact or not execution.output_sha256:
+            raise ValueError(f"Stage {execution.stage} has no complete output artifact")
+        artifact = Path(execution.output_artifact)
+        if not artifact.is_file():
+            raise ValueError(f"Stage artifact does not exist: {artifact}")
+        contents = artifact.read_text(encoding="utf-8")
+        if _sha256(contents) != execution.output_sha256:
+            raise ValueError(f"Stage artifact hash mismatch: {artifact}")
+        payload = json.loads(contents)
+        if not isinstance(payload, dict):
+            raise TypeError(f"Stage artifact must contain a JSON object: {artifact}")
+        return payload
+
+    def _run_stage_reviews(self, state: AutonomousRunState) -> list[Any]:
+        rounds = []
+        for stage, target_kind in self.REVIEW_STAGE_TARGETS:
+            execution = self._stage_execution(state, stage)
+            if execution is None:
+                raise ValueError(f"Required stage-specific review target missing: {stage}")
+            artifact = self._load_stage_artifact(execution)
+            target_ids = {
+                "gap": state.gap_ids,
+                "verification": state.verification_ids,
+                "hypothesis": state.hypothesis_ids,
+                "execution": state.experiment_ids,
+                "evaluation": state.evaluation_ids,
+            }[target_kind]
+            if not target_ids:
+                raise ValueError(f"Stage {stage} produced no {target_kind} IDs for review")
+            review_artifact = dict(artifact)
+            review_artifact["output_sha256"] = execution.output_sha256
+            review_artifact["stage"] = stage
+            review_artifact["stage_id"] = execution.stage_id
+            review_artifact["input_sha256"] = execution.input_sha256
+            review_artifact["provenance_refs"] = sorted(set([*review_artifact.get("provenance_refs", []), *state.provenance_refs]))
+            target_id = target_ids[0] if len(target_ids) == 1 else f"{stage}:{_sha256(_canonical({"ids": target_ids}))[:16]}"
+            review_round = self.reviewers.review(state.iteration, target_kind, target_id, review_artifact)
+            rounds.append(review_round)
+            state.provenance_refs.extend(ref for finding in review_round.findings for ref in finding.evidence_refs)
+        return rounds
+
     def run(self, run_id: str, initial_payload: dict[str, Any]) -> AutonomousRunState:
         state = self.resume(run_id)
         if state.status in {"completed", "cancelled"}:
@@ -110,17 +165,16 @@ class AutonomousController:
             progressed = False
             for stage in self.ORDER:
                 if stage == "review":
-                    review_target = payload.get("review_target") or payload
-                    review_round = self.reviewers.review(state.iteration, str(review_target.get("kind", "run")), str(review_target.get("id", state.run_id)), review_target)
-                    state.reviews.append(review_round)
+                    review_rounds = self._run_stage_reviews(state)
+                    state.reviews.extend(review_rounds)
                     state.current_stage = "review"
-                    for finding in review_round.findings:
-                        state.provenance_refs.extend(finding.evidence_refs)
                     self._checkpoint(state, "review")
-                    if review_round.consensus == "reject" and review_round.critical_count > 0 and state.config.stop_on_critical_review:
-                        state.status = "failed"; state.stop_reason = "Critical reviewer rejection"; state.current_stage = None; self._persist(state); return state
-                    if review_round.consensus == "revise":
-                        payload = {**payload, "review": review_round.model_dump(mode="json")}
+                    critical = [round_ for round_ in review_rounds if round_.critical_count > 0]
+                    if critical and state.config.stop_on_critical_review:
+                        state.status = "failed"; state.stop_reason = f"Critical reviewer finding(s): {len(critical)}"; state.current_stage = None; self._persist(state); return state
+                    revisions = [round_ for round_ in review_rounds if round_.consensus == "revise"]
+                    if revisions:
+                        payload = {**payload, "reviews": [round_.model_dump(mode="json") for round_ in review_rounds]}
                         progressed = True
                     continue
 
@@ -128,10 +182,7 @@ class AutonomousController:
                 stage_id = f"stage:{state.iteration}:{stage}"
                 previous = next((item for item in state.stage_executions if item.stage_id == stage_id), None)
                 if previous is not None and previous.status == "succeeded" and previous.output_artifact:
-                    artifact = Path(previous.output_artifact)
-                    if _sha256(artifact.read_text(encoding="utf-8")) != previous.output_sha256:
-                        raise ValueError(f"Stage artifact hash mismatch; refusing resume: {artifact}")
-                    payload = json.loads(artifact.read_text(encoding="utf-8"))
+                    payload = self._load_stage_artifact(previous)
                     self._harvest(state, payload)
                     continue
                 execution = previous or StageExecution(stage_id=stage_id, iteration=state.iteration, stage=stage, status="running", attempts=0)
@@ -167,9 +218,11 @@ class AutonomousController:
                     state.status = "failed"; state.stop_reason = "Required Phase 8 evaluation artifact/ID was not produced"; state.current_stage = None; self._persist(state); return state
                 self._checkpoint(state, stage)
 
-            if state.config.require_review_before_next_iteration and not any(review.iteration == state.iteration for review in state.reviews):
-                state.status = "failed"; state.stop_reason = "Iteration completed without required review"; state.current_stage = None; self._persist(state); return state
-            signature = _sha256(_canonical({"gap_ids": state.gap_ids, "verification_ids": state.verification_ids, "hypothesis_ids": state.hypothesis_ids, "experiment_ids": state.experiment_ids, "evaluation_ids": state.evaluation_ids, "latest_review": state.reviews[-1].model_dump(mode="json")}))
+            expected_review_kinds = {kind for _, kind in self.REVIEW_STAGE_TARGETS}
+            actual_review_kinds = {finding.target_kind for review in state.reviews if review.iteration == state.iteration for finding in review.findings}
+            if state.config.require_review_before_next_iteration and not expected_review_kinds.issubset(actual_review_kinds):
+                state.status = "failed"; state.stop_reason = "Iteration completed without all required stage-specific reviews"; state.current_stage = None; self._persist(state); return state
+            signature = _sha256(_canonical({"gap_ids": state.gap_ids, "verification_ids": state.verification_ids, "hypothesis_ids": state.hypothesis_ids, "experiment_ids": state.experiment_ids, "evaluation_ids": state.evaluation_ids, "latest_reviews": [review.model_dump(mode="json") for review in state.reviews if review.iteration == state.iteration]}))
             state.progress_signatures.append(signature)
             repeats = sum(1 for item in state.progress_signatures if item == signature)
             state.iteration += 1
@@ -203,8 +256,17 @@ def _identity(name: str) -> StageCallable:
     def runner(payload: dict[str, Any]) -> dict[str, Any]:
         refs = list(payload.get("provenance_refs", [])); refs.append(f"offline-smoke:{name}")
         result: dict[str, Any] = {"stage": name, "provenance_refs": sorted(set(refs)), "smoke_test": True}
-        if name == "evaluate":
+        if name == "gap":
+            result["gap_ids"] = [f"gap:{hashlib.sha256(_canonical(payload).encode('utf-8')).hexdigest()[:16]}"]
+        elif name == "verify":
+            result["verification_ids"] = [f"verification:{hashlib.sha256(_canonical(payload).encode('utf-8')).hexdigest()[:16]}"]
+        elif name == "hypothesis":
+            result["hypothesis_ids"] = [f"hypothesis:{hashlib.sha256(_canonical(payload).encode('utf-8')).hexdigest()[:16]}"]
+        elif name == "execute":
+            result["experiment_ids"] = [f"experiment:{hashlib.sha256(_canonical(payload).encode('utf-8')).hexdigest()[:16]}"]
+        elif name == "evaluate":
             result["evaluation_ids"] = [f"evaluation:{hashlib.sha256(_canonical(payload).encode('utf-8')).hexdigest()[:16]}"]
+            result["cases_evaluated"] = 1
         return result
     return runner
 
