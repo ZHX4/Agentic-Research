@@ -552,7 +552,7 @@ pytest -q
 
 The test suite includes unit and offline integration coverage for phase-specific contracts, deterministic behavior, validation failures, integrity checks, and CLI surfaces.
 
-GitHub Actions is configured to run these checks on pushes to `main` and on pull requests. The ability to execute those jobs depends on the GitHub account/workflow environment; this README does not treat an unavailable CI execution as evidence of a code failure.
+GitHub Actions is configured to run these checks on pushes to `main` and on pull requests. The repository's implementation does not treat an unavailable CI execution as evidence of a code failure; local execution of the same commands remains the recommended pre-release gate.
 
 ---
 
@@ -633,9 +633,9 @@ Good pull requests should explain:
 
 ## License
 
-No `LICENSE` file is currently present in the repository. Until a project license is added, the repository should be treated as **not explicitly licensed for unrestricted reuse**.
+No `LICENSE` file is currently present in the repository. Until an explicit project license is added, the repository should be treated as **not explicitly licensed for unrestricted reuse**.
 
-Third-party datasets, papers, models, and generated artifacts may have their own licenses and terms. Phase 10 includes an SPDX-aware audit for publication/release packaging, but a successful automated audit does not replace venue-specific or legal review.
+Third-party datasets, papers, models, and generated artifacts may have their own licenses and terms. Phase 10 includes an SPDX-aware audit for publication and release packaging, but an automated audit does not replace venue-specific or legal review.
 
 ---
 
@@ -661,7 +661,7 @@ Phase 10  ✅ Publication packaging
 
 The repository contains the planned architecture, phase-specific implementations, schemas, command-line interfaces, documentation, regression tests, and release safeguards.
 
-It does **not** mean that the system has already discovered a universally novel scientific result, that every external literature source has been exhausted, or that any particular generated manuscript is guaranteed to be accepted by a journal or conference. Those are empirical and human-evaluated outcomes, not properties that can be guaranteed by software alone.
+It does **not** mean that the system has already discovered a universally novel scientific result, that every external literature source has been exhausted, or that any generated manuscript is guaranteed to be accepted by a journal or conference. Those are empirical and human-evaluated outcomes, not properties that can be guaranteed by software alone.
 
 ---
 
@@ -674,14 +674,6 @@ Start with:
 - [`docs/roadmap.md`](docs/roadmap.md) — full project roadmap and phase gates.
 - [`docs/phase-0.md`](docs/phase-0.md) through [`docs/phase-10.md`](docs/phase-10.md) — phase specifications.
 - Corresponding `phase-*-checklist.md` files — acceptance criteria for each phase.
-
----
-
-## License and Research-Use Note
-
-The project currently does not include a repository-level `LICENSE` file. Add an explicit project license before distributing the software as an open-source package.
-
-For research use, preserve the provenance chain from source literature through experiment and publication artifacts, and respect the licenses and terms of all third-party sources.
 
 ---
 
