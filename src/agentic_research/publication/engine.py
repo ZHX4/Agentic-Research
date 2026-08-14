@@ -55,6 +55,8 @@ def build_system_paper(source_commit: str, architecture: dict[str, Any]) -> Manu
 def build_benchmark_paper(evaluation_report: dict[str, Any]) -> Manuscript:
     refs = _evidence_refs(evaluation_report)
     summary = evaluation_report.get("benchmarks", []) if isinstance(evaluation_report, dict) else []
+    if not isinstance(summary, (list, dict)) or not summary:
+        return Manuscript(manuscript_id="benchmark-paper:generated", kind="benchmark_paper", title="Evaluating Agentic-Research: Retrieval, Evidence, Gap Discovery, Novelty, and Execution Benchmarks", abstract="A benchmark-oriented evaluation of the evidence-grounded research-agent pipeline under controlled, reproducible evaluation conditions.", sections=[_section("1. Benchmark design", "No benchmark results were supplied; publication is blocked until a substantive EvaluationReport is available.", refs or ["publication:blocked:missing-benchmarks"])], evidence_refs=refs, status="blocked")
     sections = [
         _section("1. Benchmark design", "This benchmark evaluates the research-agent pipeline at retrieval, extraction, gap discovery, novelty verification, temporal integrity, human assessment, baseline comparison, ablation, and cost/compute levels.", refs),
         _section("2. Evaluation protocol", "All benchmark inputs should be frozen before reporting. Train/dev/test contamination is rejected by case identifier and input hash; prediction coverage is validated before metrics are computed.", refs),
@@ -70,6 +72,9 @@ def build_case_study(case_payload: dict[str, Any]) -> Manuscript:
     missing = [key for key in required if key not in case_payload]
     if missing:
         raise ValueError(f"Case study missing required fields: {missing}")
+    empty = [key for key in required[1:] if not case_payload.get(key)]
+    if empty:
+        return Manuscript(manuscript_id=f"case-study:{case_payload['case_id']}", kind="case_study", title=f"Validated Discovery Case Study: {case_payload['case_id']}", abstract="A provenance-backed case study whose required pipeline artifacts were not supplied completely.", sections=[_section("1. Publication status", f"Case study is blocked because these required records are empty: {', '.join(empty)}.", refs or [f"case-study:{case_payload['case_id']}"])], evidence_refs=refs, status="blocked")
     sections = [
         _section("1. Discovery provenance", json.dumps(case_payload.get("verification"), indent=2, ensure_ascii=False), refs),
         _section("2. Hypothesis", json.dumps(case_payload.get("hypothesis"), indent=2, ensure_ascii=False), refs),
@@ -113,6 +118,6 @@ def build_publication_bundle(source_commit: str, architecture: dict[str, Any], e
     if not disclosure:
         blocking.append("missing-model-provider-disclosure")
     status = "blocked" if blocking else "ready"
-    warnings = ["Publication bundle remains non-ready until every manuscript has evidence, model/provider disclosure exists, and every artifact has an audited license."] if blocking else []
+    warnings = ["Publication bundle remains non-ready until every manuscript has substantive evidence, model/provider disclosure exists, and every artifact has an audited license."] if blocking else []
     bundle_id = hashlib.sha256(json.dumps({"source_commit": source_commit, "manuscripts": [m.model_dump(mode="json") for m in manuscripts], "artifacts": [a.model_dump(mode="json") for a in reproducibility.artifacts], "disclosure": [d.model_dump(mode="json") for d in disclosure]}, sort_keys=True).encode("utf-8")).hexdigest()[:20]
     return PublicationBundle(bundle_id=f"publication:{bundle_id}", status=status, manuscripts=manuscripts, disclosure=disclosure, license_audit=audits, reproducibility=reproducibility, warnings=warnings)
