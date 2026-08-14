@@ -6,11 +6,11 @@
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Agentic-Research is a modular, end-to-end research agent designed to help turn scientific literature into **defensible research opportunities and reproducible experimental results**.
+Agentic-Research is a modular, end-to-end AI research platform designed to help turn scientific literature into **defensible research opportunities and reproducible experimental results**.
 
-Rather than stopping at search, summarization, or one-shot idea generation, the system follows a complete research workflow: it builds structured scientific knowledge from literature, identifies potential gaps, challenges those gaps against prior work, develops falsifiable hypotheses, executes controlled experiments, evaluates the evidence, manages bounded autonomous research loops, and prepares validated outputs for publication.
+Rather than stopping at search, summarization, or one-shot idea generation, the system connects the major activities of scientific discovery: it builds structured knowledge from literature, identifies potential research opportunities, challenges those opportunities against prior work, develops falsifiable hypotheses, executes controlled experiments, evaluates the evidence, manages bounded autonomous research cycles, and prepares validated outputs for publication.
 
-The project is built around a simple principle:
+The project is built around one principle:
 
 > **AI-assisted scientific discovery should be evidence-driven, reproducible, traceable, and scientifically accountable.**
 
@@ -18,31 +18,31 @@ The project is built around a simple principle:
 
 ## Why Agentic-Research?
 
-Scientific knowledge is growing faster than a researcher can reasonably inspect by hand. Important evidence may be distributed across papers, sections, tables, citations, supplementary material, and different terminology for essentially related ideas.
+Scientific knowledge is growing faster than a researcher can reasonably inspect by hand. Important evidence can be distributed across papers, sections, tables, citations, supplementary material, and different terminology for related ideas.
 
-At the same time, modern language models make it easy to generate ideas that *sound* novel without establishing that they are actually new, useful, reproducible, or experimentally supported.
+At the same time, modern language models make it easy to generate ideas that *sound* original without establishing that they are actually new, useful, reproducible, or experimentally supported.
 
 Agentic-Research treats this as an **infrastructure problem rather than a prompting problem**.
 
-The goal is to create an AI research collaborator that can:
+The platform is designed to help researchers:
 
-- build structured understanding from scientific literature;
-- connect papers, methods, datasets, tasks, claims, limitations, and evidence;
-- surface promising research opportunities;
-- aggressively challenge proposed gaps against prior work;
+- build structured scientific intelligence from literature;
+- connect papers, methods, datasets, tasks, claims, evidence, and limitations;
+- discover promising research opportunities;
+- aggressively challenge those opportunities against prior work;
 - generate diverse, explicit, falsifiable hypotheses;
 - execute experiments in controlled and reproducible environments;
 - evaluate results with benchmark, temporal, human, baseline, and ablation safeguards;
 - continue research through bounded autonomous cycles; and
-- preserve the evidence needed to package validated work for publication.
+- preserve the evidence required to package validated work for publication.
 
-Agentic-Research is designed to **augment researchers, not replace them**. Scientific interpretation, domain expertise, and final publication decisions remain human responsibilities.
+Agentic-Research is intended to **augment researchers, not replace them**. Scientific interpretation, domain expertise, and final publication decisions remain human responsibilities.
 
 ---
 
-## What It Does
+## What the Platform Does
 
-At a high level, Agentic-Research turns a scientific question or literature corpus into a chain of auditable research artifacts:
+Agentic-Research turns a scientific question or literature corpus into a chain of auditable research artifacts:
 
 ```text
 Scientific literature
@@ -69,23 +69,29 @@ Experiment planning and execution
 Evaluation and validation
         │
         ▼
-Bounded autonomous research loop
+Bounded autonomous research control
         │
         ▼
-Publication and reproducibility package
+Publication and reproducibility packaging
 ```
 
-Every major transition is represented by explicit schemas and persisted artifacts instead of hidden conversational state.
+Every major transition is represented by explicit schemas, provenance, and persisted artifacts rather than hidden conversational state.
+
+A core methodological rule is enforced throughout the system:
+
+> **Failure to find prior work within a bounded search process is not proof of global novelty.**
+
+Uncertainty remains explicit instead of being converted into unsupported confidence.
 
 ---
 
 ## Architecture
 
-Agentic-Research is deliberately modular. Each subsystem owns a well-defined responsibility and communicates through typed contracts, provenance, and durable artifacts.
+The platform is organized as a sequence of cooperating research subsystems. Each subsystem has a well-defined responsibility and communicates through typed contracts and durable artifacts.
 
-### 1. Literature Intelligence
+### Literature Intelligence
 
-The literature layer provides the foundation for scientific discovery:
+Provides the scientific corpus foundation:
 
 - source adapters and transport;
 - paper identity normalization;
@@ -94,11 +100,9 @@ The literature layer provides the foundation for scientific discovery:
 - full-text acquisition;
 - structured document processing.
 
-The result is a stable, machine-readable representation of the scientific corpus.
+### Scientific Understanding
 
-### 2. Scientific Understanding
-
-Scientific documents are transformed into structured evidence, including:
+Transforms documents into structured evidence such as:
 
 - sections and chunks;
 - tables and figures;
@@ -109,28 +113,26 @@ Scientific documents are transformed into structured evidence, including:
 - tasks;
 - limitations and contributions.
 
-This allows later components to reason over scientific structure instead of repeatedly treating papers as unstructured text.
+### Scientific World Model
 
-### 3. Scientific World Model
+Connects papers and scientific entities into a persistent representation.
 
-The world model connects papers and scientific entities into a persistent representation.
-
-It can represent relationships such as:
+For example:
 
 ```text
-Paper ──uses──> Method
-Paper ──evaluates──> Dataset
-Method ──targets──> Task
-Paper ──supports──> Claim
-Paper ──cites──> Paper
-Claim ──has evidence──> Evidence
+Paper ──uses──────> Method
+Paper ──evaluates─> Dataset
+Method ──targets─> Task
+Paper ──supports─> Claim
+Paper ──cites────> Paper
+Claim ──has──────> Evidence
 ```
 
-This representation becomes the foundation for retrieval, comparison, and gap discovery.
+This representation provides the foundation for search, comparison, and research-opportunity discovery.
 
-### 4. Research Opportunity Discovery
+### Research Opportunity Discovery
 
-The discovery engine searches for multiple kinds of research opportunities, including:
+The discovery engine searches for multiple forms of research opportunity, including:
 
 - missing combinations;
 - recurring limitations;
@@ -139,11 +141,11 @@ The discovery engine searches for multiple kinds of research opportunities, incl
 - cross-domain connections;
 - structural gaps in the scientific graph.
 
-The important distinction is that the system produces **candidate opportunities**, not automatic claims of absolute novelty.
+The result is a set of **candidate opportunities**, not automatic claims of absolute novelty.
 
-### 5. Adversarial Novelty Verification
+### Adversarial Novelty Verification
 
-A proposed research gap is actively challenged before being promoted.
+Candidate opportunities are actively challenged before they are promoted.
 
 Verification can combine:
 
@@ -151,23 +153,19 @@ Verification can combine:
 - search-probe expansion;
 - near-neighbor analysis;
 - direct prior-work detection;
-- temporal cutoffs;
+- temporal constraints;
 - counterevidence;
 - full-text verification;
 - method/dataset/task relationship checks;
 - provenance and evidence tracking.
 
-A central integrity rule is enforced throughout the system:
+External papers can be reprocessed through the structured intelligence pipeline so scientific relationships are not inferred from metadata alone.
 
-> **Failure to find prior work within a bounded search process is not proof of global novelty.**
+### Hypothesis Reasoning
 
-Uncertainty therefore remains explicit rather than being converted into unsupported confidence.
+Surviving opportunities are transformed into candidate hypotheses using complementary reasoning strategies.
 
-### 6. Hypothesis Reasoning
-
-Surviving research opportunities are transformed into candidate hypotheses through multiple complementary strategies.
-
-The reasoning layer supports:
+The system supports:
 
 - diverse generation;
 - structured reflection;
@@ -182,11 +180,11 @@ The reasoning layer supports:
 
 Every hypothesis carries an explicit **falsification condition**.
 
-### 7. Scientific Execution
+### Scientific Execution
 
 Selected hypotheses become executable experiment specifications.
 
-The execution layer is designed for reproducibility and controlled failure handling. It supports:
+The execution layer supports:
 
 - dataset manifests;
 - code integrity checks;
@@ -202,9 +200,9 @@ The execution layer is designed for reproducibility and controlled failure handl
 
 A missing or malformed required metric is treated as an invalid scientific execution result rather than silently accepted as success.
 
-### 8. Evaluation and Benchmarking
+### Evaluation and Benchmarking
 
-The evaluation layer provides rigorous measurement for the research system itself.
+The evaluation layer measures both the research system and its scientific outputs.
 
 It covers:
 
@@ -219,11 +217,11 @@ It covers:
 - deterministic confidence intervals;
 - composite evaluation reports.
 
-Benchmark contamination is explicitly checked using case identifiers and input hashes, while prediction coverage rules prevent malformed evaluation inputs from silently passing.
+Benchmark contamination is checked using case identifiers and input hashes, while prediction coverage rules prevent malformed evaluation inputs from silently passing.
 
-### 9. Autonomous Research Control
+### Autonomous Research Control
 
-The autonomy layer coordinates research loops without duplicating the underlying scientific logic.
+The autonomy layer coordinates bounded research loops without duplicating the underlying scientific logic.
 
 It provides:
 
@@ -240,9 +238,9 @@ It provides:
 - provenance harvesting;
 - deterministic run reports.
 
-Production integrations use explicit adapters for the underlying scientific services, while lightweight identity adapters are restricted to controlled smoke-test scenarios.
+Production integrations use explicit service adapters; lightweight identity adapters are restricted to controlled smoke-test scenarios.
 
-### 10. Publication and Reproducibility Packaging
+### Publication and Reproducibility Packaging
 
 Validated research outputs can be assembled into release-oriented artifacts such as:
 
@@ -262,7 +260,7 @@ Publication packaging is evidence-gated. The system does not invent missing resu
 
 ### Evidence before conclusions
 
-Important decisions should be backed by inspectable evidence and provenance instead of unsupported model output.
+Important decisions should be backed by inspectable evidence and provenance rather than unsupported model output.
 
 ### Reproducibility by construction
 
@@ -296,7 +294,7 @@ The system accelerates research work while leaving scientific interpretation, do
 | --- | --- |
 | Literature intelligence | Structured scientific corpus acquisition and processing |
 | Knowledge representation | Persistent relationships across papers and research entities |
-| Gap discovery | Multiple signals for finding research opportunities |
+| Opportunity discovery | Multiple signals for finding research opportunities |
 | Novelty verification | Adversarial search and evidence-based prior-work checking |
 | Hypothesis reasoning | Diverse, reflective, falsifiable research hypotheses |
 | Experimentation | Reproducible sandboxed scientific execution |
@@ -372,13 +370,13 @@ agentic-research-publication --help
 
 ### Discover and challenge a research opportunity
 
-Start with a structured research corpus and identify a candidate opportunity. Then run adversarial verification before investing in experimentation.
+Start with a structured research corpus, identify a candidate opportunity, and run adversarial verification before investing in experimentation.
 
 ```bash
 agentic-research-verify --help
 ```
 
-Inspect the resulting evidence, prior-work matches, temporal coverage, counterevidence, and verification status.
+Inspect prior-work matches, temporal coverage, counterevidence, deep-verification outcomes, and the resulting confidence state.
 
 ### Turn a verified opportunity into hypotheses
 
@@ -386,7 +384,7 @@ Inspect the resulting evidence, prior-work matches, temporal coverage, counterev
 agentic-research-hypotheses --help
 ```
 
-The generated artifact contains hypotheses, reflections, diversity information, selection results, and lineage.
+The resulting artifact contains hypotheses, reflections, diversity information, selection results, and lineage.
 
 ### Run a reproducible experiment
 
@@ -394,7 +392,7 @@ The generated artifact contains hypotheses, reflections, diversity information, 
 agentic-research-execution --help
 ```
 
-Experiments are executed within configured resource boundaries and produce structured metrics and artifacts suitable for downstream evaluation.
+Experiments run within configured resource boundaries and produce structured metrics and artifacts suitable for downstream evaluation.
 
 ### Evaluate results
 
@@ -402,7 +400,7 @@ Experiments are executed within configured resource boundaries and produce struc
 agentic-research-evaluation --help
 ```
 
-Use the evaluation layer to compare system behavior, baselines, ablations, temporal integrity, human ratings, and resource costs.
+Use the evaluation system to compare methods, baselines, ablations, temporal integrity, human ratings, and resource costs.
 
 ### Run autonomous research control
 
@@ -410,7 +408,7 @@ Use the evaluation layer to compare system behavior, baselines, ablations, tempo
 agentic-research-autonomous --help
 ```
 
-Production runs use explicit subsystem adapters, durable state, checkpoints, and review policies so research can continue without relying on one in-memory agent session.
+Production runs use explicit subsystem adapters, durable state, checkpoints, and review policies so research can continue without depending on one in-memory agent session.
 
 ### Prepare a publication package
 
@@ -418,13 +416,13 @@ Production runs use explicit subsystem adapters, durable state, checkpoints, and
 agentic-research-publication --help
 ```
 
-The publication layer verifies evidence, reproducibility artifacts, disclosures, and licensing before marking a bundle ready.
+The publication system verifies evidence, reproducibility artifacts, disclosures, and licensing before marking a bundle ready.
 
 ---
 
 ## Extensibility
 
-Agentic-Research is designed so that major components can be replaced without rebuilding the entire system.
+Agentic-Research is designed so major components can be replaced without rebuilding the entire system.
 
 Possible customization points include:
 
@@ -444,7 +442,7 @@ Integrations should preserve the canonical contracts, deterministic identifiers,
 
 ## Configuration
 
-Project defaults live in [`configs/default.yaml`](configs/default.yaml). Environment-specific values belong in `.env`.
+Project defaults live in [`configs/default.yaml`](configs/default.yaml), while environment-specific values belong in `.env`.
 
 Common configuration areas include:
 
@@ -458,7 +456,7 @@ Common configuration areas include:
 - autonomous retry and iteration policies;
 - publication and licensing metadata.
 
-The provider layer is intentionally decoupled from the scientific contracts, allowing infrastructure to be adapted to different environments and model providers.
+The provider layer is intentionally decoupled from the scientific contracts, allowing the platform to be adapted to different environments and model providers.
 
 ---
 
@@ -467,15 +465,15 @@ The provider layer is intentionally decoupled from the scientific contracts, all
 ### Runtime
 
 - **Python 3.11+**
-- **Pydantic 2** for strict contracts and validation
-- **Typer** for command-line interfaces
-- **SQLite** for durable autonomous state
-- **HTTPX** for external HTTP transport
-- **Beautiful Soup 4** for HTML parsing
-- **PyMuPDF** for PDF processing
-- **Rich** for terminal output
+- **Pydantic 2** — contracts and validation
+- **Typer** — command-line interfaces
+- **SQLite** — durable autonomous state
+- **HTTPX** — external HTTP transport
+- **Beautiful Soup 4** — HTML parsing
+- **PyMuPDF** — PDF processing
+- **Rich** — terminal presentation
 
-### Scientific infrastructure
+### Research infrastructure
 
 - hybrid and structured retrieval;
 - scientific graph and vector representations;
@@ -485,12 +483,12 @@ The provider layer is intentionally decoupled from the scientific contracts, all
 
 ### Engineering
 
-- **Hatchling** for packaging
-- **Pytest** for testing
-- **Ruff** for linting and formatting
-- **Mypy** for static type checking
-- **GitHub Actions** for repository quality automation
-- **Dependabot** for dependency update proposals
+- **Hatchling** — packaging
+- **Pytest** — testing
+- **Ruff** — linting and formatting
+- **Mypy** — static type checking
+- **GitHub Actions** — repository automation
+- **Dependabot** — dependency update proposals
 
 ---
 
@@ -531,7 +529,7 @@ Agentic-Research/
 └── README.md
 ```
 
-The detailed internal implementation remains in [`docs/`](docs/), keeping this README focused on the product, architecture, and user-facing workflow.
+Detailed internal implementation, methodology, contracts, and design decisions live in [`docs/`](docs/) so that the main README stays focused on the platform itself.
 
 ---
 
@@ -553,7 +551,7 @@ Major artifacts can retain or derive:
 - evaluation reports;
 - publication manifests.
 
-The platform also enforces important safety properties such as:
+The platform also enforces safeguards such as:
 
 - bounded novelty search;
 - explicit uncertainty states;
@@ -564,13 +562,13 @@ The platform also enforces important safety properties such as:
 - licensing review;
 - publication blocking when required evidence is absent.
 
-These mechanisms are designed to make scientific failure visible rather than silently converting it into confidence.
+These mechanisms are intended to make scientific failure visible rather than silently converting it into confidence.
 
 ---
 
 ## Development
 
-Run the local quality gate before submitting changes:
+Run the local quality gate before releasing changes:
 
 ```bash
 ruff check .
@@ -579,14 +577,7 @@ mypy src tests
 pytest -q
 ```
 
-Focused tests can be run for individual subsystems as needed:
-
-```bash
-pytest -q tests/test_phase8.py
-apytest="$(true)"  # remove this line; placeholder only for shell examples
-```
-
-The repository's CI workflow is configured around the same quality tools. Actual GitHub Actions execution can depend on the availability of GitHub Actions for the repository account.
+GitHub Actions is configured around the same quality checks. Actual hosted execution depends on GitHub Actions availability for the repository account.
 
 ---
 
@@ -625,9 +616,9 @@ Agentic-Research is released under the [MIT License](LICENSE).
 
 The repository contains the complete research platform and its supporting engineering infrastructure.
 
-The implementation is intentionally modular so that research components can evolve independently as better models, retrieval systems, datasets, benchmarks, and experimental methods become available.
+The system is designed as a reusable research foundation: better models, retrieval systems, datasets, benchmarks, experiment runners, and scientific methods can be integrated without redesigning the entire platform.
 
-For implementation details, internal contracts, research methodology, and design decisions, see the documentation in [`docs/`](docs/).
+For internal implementation details, research methodology, contracts, and design decisions, see [`docs/`](docs/).
 
 ---
 
