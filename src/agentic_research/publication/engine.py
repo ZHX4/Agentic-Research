@@ -28,6 +28,30 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def validate_artifact_manifest(artifacts: list[ArtifactManifestEntry]) -> None:
+    for artifact in artifacts:
+        path = Path(artifact.path)
+        if not path.is_file():
+            raise ValueError(f"Release artifact does not exist: {path}")
+        actual_sha = sha256_file(path)
+        actual_size = path.stat().st_size
+        if actual_sha != artifact.sha256:
+            raise ValueError(f"Artifact hash mismatch for {artifact.artifact_id}: {path}")
+        if actual_size != artifact.size_bytes:
+            raise ValueError(f"Artifact size mismatch for {artifact.artifact_id}: {path}")
+
+
+def validate_license_audit_coverage(
+    artifacts: list[ArtifactManifestEntry], audits: list[LicenseAuditEntry]
+) -> None:
+    artifact_ids = {artifact.artifact_id for artifact in artifacts}
+    audit_ids = [audit.artifact_id for audit in audits]
+    if len(audit_ids) != len(set(audit_ids)):
+        raise ValueError("License audit contains duplicate artifact IDs")
+    if set(audit_ids) != artifact_ids:
+        raise ValueError("License audit must cover exactly the reproducibility-package artifacts")
+
+
 def _evidence_refs(payload: Any) -> list[str]:
     if not isinstance(payload, dict):
         return []
@@ -112,8 +136,10 @@ def build_reproducibility_package(source_commit: str, artifacts: list[ArtifactMa
 
 
 def build_publication_bundle(source_commit: str, architecture: dict[str, Any], evaluation_report: dict[str, Any], case_study: dict[str, Any], disclosure: list[ModelProviderDisclosure], reproducibility: ReproducibilityPackage) -> PublicationBundle:
-    manuscripts = [build_system_paper(source_commit, architecture), build_benchmark_paper(evaluation_report), build_case_study(case_study)]
+    validate_artifact_manifest(reproducibility.artifacts)
     audits = audit_licenses(reproducibility.artifacts)
+    validate_license_audit_coverage(reproducibility.artifacts, audits)
+    manuscripts = [build_system_paper(source_commit, architecture), build_benchmark_paper(evaluation_report), build_case_study(case_study)]
     blocking = [item for item in manuscripts if item.status != "ready"] + [item for item in audits if item.status != "pass"]
     if not disclosure:
         blocking.append("missing-model-provider-disclosure")
