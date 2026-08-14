@@ -8,7 +8,7 @@ from typing import Literal
 
 from agentic_research.schemas.phase8 import BenchmarkCase, BenchmarkResult, CostRecord, MetricValue, PredictionRecord
 from .metrics import average_precision_at_k, binary_classification_metrics, bootstrap_mean_ci, macro_field_f1, mean_reciprocal_rank, ndcg_at_k, precision_recall_f1, temporal_leakage
-from .splits import validate_prediction_coverage
+from .validation import validate_prediction_coverage
 
 
 def stable_run_id(*parts: str) -> str:
@@ -40,7 +40,9 @@ def evaluate_retrieval(cases: list[BenchmarkCase], predictions: list[PredictionR
     f1s: list[float] = []
     for got, expected in zip(ranked, gold):
         p, r, f = precision_recall_f1(got[:k], expected)
-        precisions.append(p); recalls.append(r); f1s.append(f)
+        precisions.append(p)
+        recalls.append(r)
+        f1s.append(f)
     return BenchmarkResult(run_id=stable_run_id(benchmark_id, system_name, split, json.dumps([c.case_id for c in cases], sort_keys=True)), benchmark_id=benchmark_id, kind="retrieval", system_name=system_name, split=split, cases_evaluated=len(cases), metrics=[MetricValue(name=f"precision@{k}", value=mean(precisions) if precisions else 0.0, n=len(cases)), MetricValue(name=f"recall@{k}", value=mean(recalls) if recalls else 0.0), MetricValue(name=f"f1@{k}", value=mean(f1s) if f1s else 0.0, n=len(cases)), MetricValue(name="mrr", value=mrr, n=len(cases)), MetricValue(name=f"map@{k}", value=mean(aps) if aps else 0.0, n=len(cases)), MetricValue(name=f"ndcg@{k}", value=mean(ndcgs) if ndcgs else 0.0, n=len(cases))])
 
 
