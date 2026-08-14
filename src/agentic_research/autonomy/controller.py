@@ -266,7 +266,7 @@ def _identity(name: str) -> StageCallable:
         elif name == "execute":
             result["experiment_ids"] = [f"experiment:{hashlib.sha256(_canonical(payload).encode('utf-8')).hexdigest()[:16]}"]
         elif name == "evaluate":
-            result["evaluation_ids"] = [f"evaluation:{hashlib.sha256(_canonical(payload).encode('utf-8')).hexdigest()[:16]"]
+            result["evaluation_ids"] = [f"evaluation:{hashlib.sha256(_canonical(payload).encode('utf-8')).hexdigest()[:16]}"]
             result["cases_evaluated"] = 1
         return result
     return runner
