@@ -64,13 +64,13 @@ def _ready_inputs(tmp_path: Path):
         )
     ]
     architecture = {"evidence_refs": ["arch:1"]}
-    evaluation = {"provenance_refs": ["bench:1"], "benchmarks": []}
+    evaluation = {"provenance_refs": ["bench:1"], "benchmarks": [{"benchmark_id": "b1", "metric": 0.9}]}
     case = {
         "case_id": "c1",
-        "hypothesis": {},
-        "verification": {},
-        "execution": {},
-        "evaluation": {},
+        "hypothesis": {"id": "h1"},
+        "verification": {"id": "v1"},
+        "execution": {"id": "e1"},
+        "evaluation": {"id": "ev1"},
         "provenance_refs": ["case:1"],
     }
     return architecture, evaluation, case, disclosure, package
@@ -89,3 +89,9 @@ def test_bundle_is_blocked_when_disclosure_is_missing(tmp_path: Path) -> None:
     bundle = build_publication_bundle("abcdef123456789", architecture, evaluation, case, [], package)
     assert bundle.status == "blocked"
     assert any("disclosure" in warning.lower() for warning in bundle.warnings)
+
+
+def test_benchmark_paper_is_blocked_without_results() -> None:
+    from agentic_research.publication.engine import build_benchmark_paper
+    manuscript = build_benchmark_paper({"provenance_refs": ["bench:1"], "benchmarks": []})
+    assert manuscript.status == "blocked"
