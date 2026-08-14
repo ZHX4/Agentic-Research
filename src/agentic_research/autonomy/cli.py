@@ -6,22 +6,41 @@ from typing import Any
 
 import typer
 
-from .controller import AutonomousController, AutonomousRunConfig, _build_controller, build_autonomous_report, load_callable_adapters, _identity, StageAdapter
+from agentic_research.schemas.phase9 import AutonomousRunConfig
+
+from .controller import (
+    StageAdapter,
+    AutonomousController,
+    _build_controller,
+    _identity,
+    _sha256,
+    build_autonomous_report,
+    load_callable_adapters,
+)
 
 app = typer.Typer(help="Phase 9 autonomous research CLI.")
+STAGES = ("gap", "verify", "hypothesis", "execute", "evaluate", "report")
 
 
 def _adapters(adapters_file: Path | None, offline_smoke_test: bool) -> list[StageAdapter]:
     if offline_smoke_test:
-        return [StageAdapter(name, _identity(name)) for name in ("gap", "verify", "hypothesis", "execute", "evaluate", "report")]
+        return [StageAdapter(name, _identity(name)) for name in STAGES]
     if adapters_file is None:
-        raise typer.BadParameter("--adapters-file is required unless --offline-smoke-test is explicitly enabled")
+        raise typer.BadParameter(
+            "--adapters-file is required unless --offline-smoke-test is explicitly enabled"
+        )
     return load_callable_adapters(adapters_file)
 
 
 def _resume_payload(controller: AutonomousController, run_id: str) -> dict[str, Any]:
     state = controller.resume(run_id)
-    successful = [item for item in state.stage_executions if item.iteration == state.iteration and item.status == "succeeded" and item.output_artifact]
+    successful = [
+        item
+        for item in state.stage_executions
+        if item.iteration == state.iteration
+        and item.status == "succeeded"
+        and item.output_artifact
+    ]
     if not successful:
         return {}
     order = {stage: index for index, stage in enumerate(controller.ORDER)}
@@ -30,7 +49,6 @@ def _resume_payload(controller: AutonomousController, run_id: str) -> dict[str, 
     if not artifact.is_file() or not execution.output_sha256:
         raise typer.BadParameter(f"Cannot resume: missing artifact for {execution.stage}")
     contents = artifact.read_text(encoding="utf-8")
-    from .controller import _sha256
     if _sha256(contents) != execution.output_sha256:
         raise typer.BadParameter(f"Cannot resume: artifact hash mismatch for {artifact}")
     payload = json.loads(contents)
