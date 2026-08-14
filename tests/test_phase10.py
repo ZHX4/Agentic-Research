@@ -7,6 +7,7 @@ import pytest
 from agentic_research.publication.engine import (
     audit_licenses,
     build_artifact_entry,
+    build_benchmark_paper,
     build_case_study,
     build_publication_bundle,
     build_reproducibility_package,
@@ -92,6 +93,22 @@ def test_bundle_is_blocked_when_disclosure_is_missing(tmp_path: Path) -> None:
 
 
 def test_benchmark_paper_is_blocked_without_results() -> None:
-    from agentic_research.publication.engine import build_benchmark_paper
     manuscript = build_benchmark_paper({"provenance_refs": ["bench:1"], "benchmarks": []})
     assert manuscript.status == "blocked"
+
+
+def test_bundle_rejects_stale_artifact_manifest(tmp_path: Path) -> None:
+    architecture, evaluation, case, disclosure, package = _ready_inputs(tmp_path)
+    artifact_path = Path(package.artifacts[0].path)
+    artifact_path.write_text("tampered", encoding="utf-8")
+    with pytest.raises(ValueError, match="Artifact hash mismatch"):
+        build_publication_bundle("abcdef123456789", architecture, evaluation, case, disclosure, package)
+
+
+def test_license_audit_coverage_matches_exact_artifact_set(tmp_path: Path) -> None:
+    from agentic_research.publication.engine import validate_license_audit_coverage
+    path = tmp_path / "artifact.txt"
+    path.write_text("hello", encoding="utf-8")
+    entry = build_artifact_entry(path, "result", "r1", "MIT")
+    audits = audit_licenses([entry])
+    validate_license_audit_coverage([entry], audits)
