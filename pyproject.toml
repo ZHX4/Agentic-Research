@@ -37,7 +37,7 @@ agentic-research-verify = "agentic_research.verification.cli:app"
 agentic-research-hypotheses = "agentic_research.hypotheses.cli:app"
 agentic-research-execution = "agentic_research.execution.cli:app"
 agentic-research-evaluation = "agentic_research.evaluation.cli:app"
-agentic-research-autonomous = "agentic_research.autonomy.controller:app"
+agentic-research-autonomous = "agentic_research.autonomy.cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentic_research"]
