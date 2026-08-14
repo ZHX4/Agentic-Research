@@ -4,8 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from agentic_research.publication.engine import build_artifact_entry, build_case_study, build_publication_bundle, build_reproducibility_package
-from agentic_research.schemas.phase10 import ArtifactManifestEntry, Manuscript, PublicationSection, ModelProviderDisclosure
+from agentic_research.publication.engine import (
+    audit_licenses,
+    build_artifact_entry,
+    build_case_study,
+    build_publication_bundle,
+    build_reproducibility_package,
+)
+from agentic_research.schemas.phase10 import Manuscript, ModelProviderDisclosure, PublicationSection
 
 
 def test_artifact_hash_is_computed_from_file(tmp_path: Path) -> None:
@@ -21,7 +27,6 @@ def test_unknown_license_requires_review(tmp_path: Path) -> None:
     path.write_text("hello", encoding="utf-8")
     entry = build_artifact_entry(path, "result", "r1")
     package = build_reproducibility_package("abcdef123456789", [entry], "pyproject.toml", ["pytest -q"])
-    from agentic_research.publication.engine import audit_licenses
     audit = audit_licenses(package.artifacts)
     assert audit[0].status == "review"
 
@@ -43,11 +48,43 @@ def test_case_study_requires_pipeline_fields() -> None:
         build_case_study({"case_id": "c1"})
 
 
-def test_ready_bundle_requires_disclosure_and_passed_licenses(tmp_path: Path) -> None:
+def _ready_inputs(tmp_path: Path):
     path = tmp_path / "artifact.txt"
     path.write_text("hello", encoding="utf-8")
     entry = build_artifact_entry(path, "result", "r1", "MIT")
     package = build_reproducibility_package("abcdef123456789", [entry], "pyproject.toml", ["pytest -q"])
-    disclosure = [ModelProviderDisclosure(provider="test", model="model", role="generation", local_or_remote="local", training_data_disclosed=False, usage_notes="Synthetic test disclosure.")]
+    disclosure = [
+        ModelProviderDisclosure(
+            provider="test",
+            model="model",
+            role="generation",
+            local_or_remote="local",
+            training_data_disclosed=False,
+            usage_notes="Synthetic test disclosure.",
+        )
+    ]
+    architecture = {"evidence_refs": ["arch:1"]}
+    evaluation = {"provenance_refs": ["bench:1"], "benchmarks": []}
+    case = {
+        "case_id": "c1",
+        "hypothesis": {},
+        "verification": {},
+        "execution": {},
+        "evaluation": {},
+        "provenance_refs": ["case:1"],
+    }
+    return architecture, evaluation, case, disclosure, package
+
+
+def test_ready_bundle_is_emittable_with_evidence_disclosure_and_passed_licenses(tmp_path: Path) -> None:
+    architecture, evaluation, case, disclosure, package = _ready_inputs(tmp_path)
+    bundle = build_publication_bundle("abcdef123456789", architecture, evaluation, case, disclosure, package)
+    assert bundle.status == "ready"
+    assert {item.kind for item in bundle.manuscripts} == {"system_paper", "benchmark_paper", "case_study"}
+    assert all(item.status == "pass" for item in bundle.license_audit)
+
+
+def test_bundle_is_blocked_when_disclosure_is_missing(tmp_path: Path) -> None:
+    architecture, evaluation, case, _disclosure, package = _ready_inputs(tmp_path)
     with pytest.raises(ValueError):
-        build_publication_bundle("abcdef123456789", {"evidence_refs": ["arch:1"]}, {"provenance_refs": ["bench:1"]}, {"case_id": "c1", "hypothesis": {}, "verification": {}, "execution": {}, "evaluation": {}, "provenance_refs": ["case:1"]}, disclosure, package)
+        build_publication_bundle("abcdef123456789", architecture, evaluation, case, [], package)
