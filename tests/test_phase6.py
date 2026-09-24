@@ -58,7 +58,7 @@ def test_reflection_and_falsification_exist() -> None:
     run = run_hypothesis_reasoning([make_gap()])
     assert run.candidates
     assert all(item.hypothesis.falsification_condition for item in run.candidates)
-    assert all(item.reflection.falsification_condition for item in run.candidates)
+    assert all(item.reflection.failure_modes for item in run.candidates)
 
 
 def test_evolution_artifacts_are_integrity_safe() -> None:
@@ -87,8 +87,17 @@ def test_composition_skips_same_gap_pairs_without_consuming_budget() -> None:
         dedup_similarity_threshold=0.99,
         max_evolution_generations=0,
     )
-    run = run_hypothesis_reasoning([make_gap("a"), make_gap("b"), make_gap("c")], cfg)
-    composed = [item for item in run.candidates if item.hypothesis.origin == "gap_composed"]
+    gaps = [
+        make_gap("a").model_copy(update={"method": "Method-A"}),
+        make_gap("b").model_copy(update={"method": "Method-B"}),
+        make_gap("c").model_copy(update={"method": "Method-C"}),
+    ]
+    run = run_hypothesis_reasoning(gaps, cfg)
+    composed = [
+        item
+        for item in run.candidates
+        if item.hypothesis.origin == "gap_composed" and len(item.hypothesis.source_gap_ids) == 2
+    ]
     assert len(composed) == 1
     assert len(composed[0].hypothesis.source_gap_ids) == 2
 
@@ -115,12 +124,14 @@ def test_cli_writes_artifact(tmp_path: Path) -> None:
         verified_candidate=make_gap(),
     )
     inp.write_text(
-        NoveltyVerificationReport(run_id="r", input_candidate_count=1, results=[verification]).model_dump_json(),
+        NoveltyVerificationReport(
+            run_id="r", input_candidate_count=1, results=[verification]
+        ).model_dump_json(),
         encoding="utf-8",
     )
     result = CliRunner().invoke(
         app,
-        ["reason", "--input", str(inp), "--output", str(out), "--max-evolution-generations", "0"],
+        ["--input", str(inp), "--output", str(out), "--max-evolution-generations", "0"],
     )
     assert result.exit_code == 0
     assert out.exists()

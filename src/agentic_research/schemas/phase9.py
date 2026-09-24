@@ -1,10 +1,10 @@
 """Phase 9 autonomous discovery contracts."""
+
 from __future__ import annotations
 
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
 
 RunStatus = Literal["planned", "running", "paused", "completed", "failed", "cancelled"]
 StageName = Literal["gap", "verify", "hypothesis", "execute", "evaluate", "review", "report"]
@@ -77,7 +77,7 @@ class ReviewRound(BaseModel):
     reviewer_count: int = Field(ge=1)
 
     @model_validator(mode="after")
-    def validate_counts(self) -> "ReviewRound":
+    def validate_counts(self) -> ReviewRound:
         actual = sum(1 for item in self.findings if item.severity == "critical")
         if actual != self.critical_count:
             raise ValueError("critical_count must equal the number of critical findings")
@@ -109,7 +109,7 @@ class AutonomousRunState(BaseModel):
     stop_reason: str | None = None
 
     @model_validator(mode="after")
-    def validate_state(self) -> "AutonomousRunState":
+    def validate_state(self) -> AutonomousRunState:
         if self.status == "completed" and self.current_stage is not None:
             raise ValueError("Completed runs must not have a current stage")
         if self.iteration > self.config.max_iterations:

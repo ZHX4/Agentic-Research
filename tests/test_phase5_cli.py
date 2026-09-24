@@ -6,7 +6,6 @@ from agentic_research.schemas.gap import GapCandidate
 from agentic_research.schemas.phase4 import GapDiscoveryResult, GapSignal
 from agentic_research.verification.cli import app
 
-
 runner = CliRunner()
 
 
@@ -55,9 +54,10 @@ def test_verify_cli_local_requires_database_or_explicit_no_local(tmp_path: Path)
     result = runner.invoke(
         app,
         [
-            "verify-gaps",
-            "--input", str(_input_file(tmp_path)),
-            "--output", str(tmp_path / "out.json"),
+            "--input",
+            str(_input_file(tmp_path)),
+            "--output",
+            str(tmp_path / "out.json"),
             "--no-external",
         ],
     )

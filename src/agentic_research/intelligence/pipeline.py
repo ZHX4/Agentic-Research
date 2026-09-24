@@ -6,8 +6,8 @@ import hashlib
 from pathlib import Path
 
 from agentic_research.intelligence.calibration import IsotonicCalibrator
-from agentic_research.intelligence.citations import extract_citation_edges, extract_references
 from agentic_research.intelligence.chunking import chunk_blocks
+from agentic_research.intelligence.citations import extract_citation_edges, extract_references
 from agentic_research.intelligence.extraction import extract_claims, extract_fields
 from agentic_research.intelligence.layout import extract_figures, extract_tables, iter_text_blocks
 from agentic_research.intelligence.sections import detect_sections
@@ -60,14 +60,13 @@ def extract_paper_intelligence(
     figures = extract_figures(pdf_path, paper.paper_id)
 
     reference_range = _reference_range(sections)
-    reference_section = None
     if reference_range is not None:
         reference_start, reference_end = reference_range
-        reference_section = next(section for section in sections if section.order == reference_start)
         reference_blocks = [
             block
             for block in blocks
-            if block.order >= reference_start and (reference_end is None or block.order < reference_end)
+            if block.order > reference_start
+            and (reference_end is None or block.order < reference_end)
         ]
     else:
         reference_blocks = []
@@ -106,7 +105,7 @@ def extract_paper_intelligence(
     )
 
     extraction_id = hashlib.sha1(
-        f"{paper.paper_id}|{document_digest}|{EXTRACTOR_VERSION}".encode("utf-8")
+        f"{paper.paper_id}|{document_digest}|{EXTRACTOR_VERSION}".encode()
     ).hexdigest()[:20]
     extraction = StructuredExtraction(
         extraction_id=f"extract-{extraction_id}",

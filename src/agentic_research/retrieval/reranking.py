@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import re
-from typing import Sequence
+from abc import ABC, abstractmethod
+from collections.abc import Sequence
 
 from agentic_research.schemas.phase3 import RetrievalHit
 
@@ -54,5 +54,8 @@ class CrossEncoderReranker(Reranker):
         if not hits:
             return []
         scores = self._model.predict([(query, hit.text) for hit in hits])
-        output = [hit.model_copy(update={"rerank_score": float(score)}) for hit, score in zip(hits, scores, strict=True)]
+        output = [
+            hit.model_copy(update={"rerank_score": float(score)})
+            for hit, score in zip(hits, scores, strict=True)
+        ]
         return sorted(output, key=lambda item: (-float(item.rerank_score or 0), item.chunk_id))

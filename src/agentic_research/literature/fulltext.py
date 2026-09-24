@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
-import fitz  # type: ignore[import-untyped]
+import fitz
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
@@ -28,7 +28,7 @@ class FullTextManifest(BaseModel):
     local_path: str | None = None
     sha256: str | None = None
     byte_size: int = Field(default=0, ge=0)
-    retrieved_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    retrieved_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     error: str | None = None
 
 
@@ -67,9 +67,13 @@ class FullTextAcquirer:
         for source, url in candidates:
             try:
                 response = self._client.get(url)
-                media_type = _media_type(response.headers.get("content-type", ""), response.url.path)
+                media_type = _media_type(
+                    response.headers.get("content-type", ""), response.url.path
+                )
                 if media_type == "unknown":
-                    last_error = f"Unsupported content type: {response.headers.get('content-type', '')}"
+                    last_error = (
+                        f"Unsupported content type: {response.headers.get('content-type', '')}"
+                    )
                     continue
                 payload = response.content
                 digest = hashlib.sha256(payload).hexdigest()
@@ -79,8 +83,10 @@ class FullTextAcquirer:
                 return FullTextManifest(
                     paper_id=paper.paper_id,
                     source=source,
-                    requested_url=url,
-                    final_url=response.url,
+                    # Pydantic coerces URL strings to HttpUrl; invalid values surface as
+                    # ValidationError and are recorded as acquisition failures downstream.
+                    requested_url=url,  # type: ignore[arg-type]
+                    final_url=str(response.url),  # type: ignore[arg-type]
                     media_type=media_type,
                     status="downloaded",
                     local_path=str(path),
@@ -93,7 +99,9 @@ class FullTextAcquirer:
         return FullTextManifest(
             paper_id=paper.paper_id,
             source=";".join(source for source, _ in candidates),
-            requested_url=candidates[0][1],
+            # Pydantic coerces URL strings to HttpUrl; invalid values surface as
+            # ValidationError and are recorded as acquisition failures downstream.
+            requested_url=candidates[0][1],  # type: ignore[arg-type]
             media_type="unknown",
             status="failed",
             error=last_error or "Unknown acquisition error",

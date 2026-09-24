@@ -1,15 +1,18 @@
 """Deterministic Phase 6 hypothesis generation and selection."""
+
 from __future__ import annotations
 
 import hashlib
 import itertools
 import json
+from typing import Literal
 
 from agentic_research.schemas.gap import GapCandidate, GapStatus
 from agentic_research.schemas.phase6 import (
     Hypothesis,
     HypothesisCandidate,
     HypothesisConfig,
+    HypothesisOrigin,
     HypothesisReflection,
     HypothesisRun,
 )
@@ -56,13 +59,10 @@ def reflect(h: Hypothesis) -> HypothesisReflection:
         0.0,
         min(
             1.0,
-            0.55
-            + 0.20 * h.evidence_score
-            + 0.15 * h.feasibility_score
-            - 0.08 * len(weaknesses),
+            0.55 + 0.20 * h.evidence_score + 0.15 * h.feasibility_score - 0.08 * len(weaknesses),
         ),
     )
-    recommendation = (
+    recommendation: Literal["advance", "revise", "discard"] = (
         "advance" if score >= 0.72 and not weaknesses else "revise" if score >= 0.50 else "discard"
     )
     return HypothesisReflection(
@@ -87,7 +87,7 @@ def reflect(h: Hypothesis) -> HypothesisReflection:
 
 def _build(
     gap: GapCandidate,
-    origin: str,
+    origin: HypothesisOrigin,
     mechanism: str,
     effect: str,
     reject: str,
@@ -103,7 +103,7 @@ def _build(
         hypothesis_id=_id("hyp", gap.gap_id, origin, str(ordinal), mechanism),
         statement=(
             f"For {task}, applying {method} to {dataset} will produce "
-            "the predicted effect under the stated controls."
+            f"{effect} under the stated controls."
         ),
         research_question=(
             f"Does {method} produce the predicted effect on {dataset} "
@@ -137,7 +137,7 @@ def generate_candidates(
 ) -> list[HypothesisCandidate]:
     cfg = config or HypothesisConfig()
     output: list[HypothesisCandidate] = []
-    templates = [
+    templates: list[tuple[HypothesisOrigin, str, str, str, list[str], list[str]]] = [
         (
             "gap_direct",
             "directly test the missing configuration",
@@ -243,7 +243,8 @@ def generate_candidates(
             update={
                 "source_gap_ids": gap_ids,
                 "source_statuses": sorted(
-                    set(left.source_statuses + right.source_statuses), key=lambda status: status.value
+                    set(left.source_statuses + right.source_statuses),
+                    key=lambda status: status.value,
                 ),
             }
         )
@@ -300,7 +301,9 @@ def _evolve(item: HypothesisCandidate, generation: int) -> HypothesisCandidate:
     )
 
 
-def _tournament(items: list[HypothesisCandidate], cfg: HypothesisConfig) -> list[HypothesisCandidate]:
+def _tournament(
+    items: list[HypothesisCandidate], cfg: HypothesisConfig
+) -> list[HypothesisCandidate]:
     pool = sorted(
         items,
         key=lambda item: (-item.hypothesis.composite_score, item.hypothesis.hypothesis_id),
@@ -358,6 +361,8 @@ def run_hypothesis_reasoning(
         cluster_count=len(clusters),
         candidates=candidates,
         pareto_frontier_ids=[item.hypothesis.hypothesis_id for item in frontier],
-        selected_hypothesis_ids=[item.hypothesis.hypothesis_id for item in pool[: cfg.keep_diverse_limit]],
+        selected_hypothesis_ids=[
+            item.hypothesis.hypothesis_id for item in pool[: cfg.keep_diverse_limit]
+        ],
         warnings=[] if initial else ["No eligible verified gaps produced hypotheses."],
     )

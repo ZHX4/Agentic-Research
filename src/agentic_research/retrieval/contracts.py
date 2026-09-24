@@ -2,12 +2,14 @@
 
 from abc import ABC, abstractmethod
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agentic_research.schemas import Paper
 
 
 class SearchQuery(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     text: str = Field(min_length=1)
     year_from: int | None = Field(default=None, ge=1900, le=2200)
     year_to: int | None = Field(default=None, ge=1900, le=2200)
@@ -16,9 +18,12 @@ class SearchQuery(BaseModel):
 
     @model_validator(mode="after")
     def validate_year_window(self) -> "SearchQuery":
-        if self.year_from is not None and self.year_to is not None:
-            if self.year_from > self.year_to:
-                raise ValueError("year_from must be less than or equal to year_to")
+        if (
+            self.year_from is not None
+            and self.year_to is not None
+            and self.year_from > self.year_to
+        ):
+            raise ValueError("year_from must be less than or equal to year_to")
         if self.temporal_cutoff is not None:
             if self.year_from is not None and self.year_from > self.temporal_cutoff:
                 raise ValueError("year_from cannot exceed temporal_cutoff")
@@ -28,6 +33,8 @@ class SearchQuery(BaseModel):
 
 
 class SearchHit(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     paper: Paper
     score: float = Field(ge=0)
     source: str = Field(min_length=1)

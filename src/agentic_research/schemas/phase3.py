@@ -1,6 +1,6 @@
 """Phase 3 schemas for retrieval and the scientific world model."""
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -16,7 +16,11 @@ class RetrievalFilters(BaseModel):
 
     @model_validator(mode="after")
     def validate_window(self) -> "RetrievalFilters":
-        if self.year_from is not None and self.year_to is not None and self.year_from > self.year_to:
+        if (
+            self.year_from is not None
+            and self.year_to is not None
+            and self.year_from > self.year_to
+        ):
             raise ValueError("year_from must be <= year_to")
         if self.temporal_cutoff is not None:
             if self.year_from is not None and self.year_from > self.temporal_cutoff:
@@ -58,12 +62,22 @@ class WorldNode(BaseModel):
 
     node_id: str = Field(min_length=1)
     node_type: Literal[
-        "paper", "section", "chunk", "claim", "evidence", "reference",
-        "method", "dataset", "metric", "baseline", "task", "author",
+        "paper",
+        "section",
+        "chunk",
+        "claim",
+        "evidence",
+        "reference",
+        "method",
+        "dataset",
+        "metric",
+        "baseline",
+        "task",
+        "author",
     ]
     paper_id: str | None = None
     label: str = Field(min_length=1)
-    payload: dict = Field(default_factory=dict)
+    payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class WorldEdge(BaseModel):
@@ -73,11 +87,21 @@ class WorldEdge(BaseModel):
     source_id: str = Field(min_length=1)
     target_id: str = Field(min_length=1)
     edge_type: Literal[
-        "contains", "supports", "qualifies", "contradicts", "contextualizes",
-        "cites", "has_method", "has_dataset", "has_metric", "has_baseline",
-        "has_task", "authored_by", "references",
+        "contains",
+        "supports",
+        "qualifies",
+        "contradicts",
+        "contextualizes",
+        "cites",
+        "has_method",
+        "has_dataset",
+        "has_metric",
+        "has_baseline",
+        "has_task",
+        "authored_by",
+        "references",
     ]
-    payload: dict = Field(default_factory=dict)
+    payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class TraversalResult(BaseModel):

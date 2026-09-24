@@ -10,7 +10,9 @@ def test_author_year_citation_resolution() -> None:
         "Smith, Alice. Retrieval Methods. 2024. doi:10.1234/XYZ\nJones, Bob. Other Work. 2023.",
     )
     assert refs[0].authors == ["Smith"]
-    chunk = TextChunk(chunk_id="c1", paper_id="p1", text="Prior work demonstrates this (Smith et al., 2024).")
+    chunk = TextChunk(
+        chunk_id="c1", paper_id="p1", text="Prior work demonstrates this (Smith et al., 2024)."
+    )
     edges = extract_citation_edges(paper, [chunk], refs)
     assert len(edges) == 1
     assert edges[0].cited_reference_id == refs[0].reference_id

@@ -9,7 +9,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .gap import GapCandidate, GapStatus
 from .paper import Paper
 
-
 NoveltyVerdict = Literal["supported", "weakened", "disproved", "inconclusive"]
 CoverageLevel = Literal["none", "limited", "moderate", "broad"]
 
@@ -87,6 +86,9 @@ class NoveltyVerificationConfig(BaseModel):
     external_results_per_query: int = Field(default=10, ge=1, le=100)
     local_results_per_query: int = Field(default=10, ge=1, le=100)
     max_queries_per_gap: int = Field(default=12, ge=1, le=50)
+    # Retained for configuration compatibility: exact-combination verdicts depend
+    # on entity identity, not on this threshold. It still bounds
+    # near_match_similarity from above (see validate_thresholds).
     min_direct_similarity: float = Field(default=0.92, ge=0, le=1)
     near_match_similarity: float = Field(default=0.72, ge=0, le=1)
     min_broad_searches: int = Field(default=3, ge=1, le=50)
@@ -100,13 +102,15 @@ class NoveltyVerificationConfig(BaseModel):
     deep_verification_similarity_floor: float = Field(default=0.45, ge=0, le=1)
 
     @model_validator(mode="after")
-    def validate_thresholds(self) -> "NoveltyVerificationConfig":
+    def validate_thresholds(self) -> NoveltyVerificationConfig:
         if self.near_match_similarity > self.min_direct_similarity:
             raise ValueError("near_match_similarity must be <= min_direct_similarity")
         if not self.include_local and not self.include_external:
             raise ValueError("At least one search source must be enabled")
         if self.deep_verify and self.max_deep_verifications < 1:
-            raise ValueError("max_deep_verifications must be positive when deep verification is enabled")
+            raise ValueError(
+                "max_deep_verifications must be positive when deep verification is enabled"
+            )
         return self
 
 
@@ -144,7 +148,7 @@ class NoveltyVerificationReport(BaseModel):
     results: list[GapVerificationResult] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_integrity(self) -> "NoveltyVerificationReport":
+    def validate_integrity(self) -> NoveltyVerificationReport:
         if self.input_candidate_count != len(self.results):
             raise ValueError("input_candidate_count must equal the number of verification results")
         ids = [result.verification_id for result in self.results]

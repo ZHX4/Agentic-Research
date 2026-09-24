@@ -40,9 +40,7 @@ def detect_missing_combinations(papers: list[Paper]) -> list[GapCandidate]:
                     continue
 
                 supporting = [
-                    p.paper_id
-                    for p in task_papers
-                    if method in p.methods or dataset in p.datasets
+                    p.paper_id for p in task_papers if method in p.methods or dataset in p.datasets
                 ]
                 statement = (
                     f"The corpus contains work on method '{method}' and dataset '{dataset}' "
@@ -61,8 +59,8 @@ def detect_missing_combinations(papers: list[Paper]) -> list[GapCandidate]:
                         confidence=0.35,
                         status=GapStatus.CANDIDATE,
                         rationale=(
-                            "Candidate derived from an observed absence in the supplied corpus. "
-                            "It must be checked against broader literature before any novelty claim."
+                            "Candidate derived from an observed absence in the supplied corpus. It "
+                            "must be checked against broader literature before any novelty claim."
                         ),
                     )
                 )

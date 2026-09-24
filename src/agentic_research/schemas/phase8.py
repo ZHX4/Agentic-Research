@@ -1,11 +1,14 @@
 """Phase 8 evaluation and benchmarking contracts."""
+
 from __future__ import annotations
 
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-BenchmarkKind = Literal["retrieval", "extraction", "gap", "novelty", "temporal", "human", "baseline", "ablation"]
+BenchmarkKind = Literal[
+    "retrieval", "extraction", "gap", "novelty", "temporal", "human", "baseline", "ablation"
+]
 MetricDirection = Literal["higher", "lower"]
 
 
@@ -22,7 +25,7 @@ class BenchmarkCase(BaseModel):
     metadata: dict[str, str | int | float | bool] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def validate_temporal(self) -> "BenchmarkCase":
+    def validate_temporal(self) -> BenchmarkCase:
         if self.kind == "temporal" and self.cutoff_year is None:
             raise ValueError("Temporal benchmark cases require cutoff_year")
         return self
@@ -83,7 +86,7 @@ class HumanEvaluationResult(BaseModel):
     ratings: list[HumanRating] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_raters(self) -> "HumanEvaluationResult":
+    def validate_raters(self) -> HumanEvaluationResult:
         annotators = {rating.annotator_id for rating in self.ratings}
         if len(annotators) != self.annotator_count:
             raise ValueError("annotator_count must match ratings exactly")
@@ -159,7 +162,7 @@ class EvaluationReport(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_unique_runs(self) -> "EvaluationReport":
+    def validate_unique_runs(self) -> EvaluationReport:
         ids = [item.run_id for item in self.benchmark_results]
         if len(ids) != len(set(ids)):
             raise ValueError("Duplicate benchmark run IDs are not allowed")

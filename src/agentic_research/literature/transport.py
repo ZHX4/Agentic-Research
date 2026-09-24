@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from email.utils import parsedate_to_datetime
 from time import monotonic
+from typing import Any
 
 import httpx
 
@@ -65,13 +67,13 @@ class HttpClient:
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "HttpClient":
+    def __enter__(self) -> HttpClient:
         return self
 
     def __exit__(self, *_: object) -> None:
         self.close()
 
-    def get(self, url: str, *, params: dict[str, object] | None = None) -> httpx.Response:
+    def get(self, url: str, *, params: Mapping[str, Any] | None = None) -> httpx.Response:
         last_error: Exception | None = None
         for attempt in range(self._retry.max_attempts):
             self._rate_limiter.wait()
@@ -97,7 +99,7 @@ class HttpClient:
 
     def _retry_delay(self, response: httpx.Response | None, attempt: int) -> float:
         if response is not None and response.status_code == 429:
-            retry_after = response.headers.get("Retry-After")
+            retry_after: str | None = response.headers.get("Retry-After")
             if retry_after:
                 try:
                     return min(float(retry_after), self._retry.max_delay_seconds)
@@ -107,4 +109,7 @@ class HttpClient:
                         return max(0.0, min(retry_at - time.time(), self._retry.max_delay_seconds))
                     except (TypeError, ValueError, OverflowError):
                         pass
-        return min(self._retry.base_delay_seconds * (2**attempt), self._retry.max_delay_seconds)
+        delay_seconds: float = min(
+            self._retry.base_delay_seconds * (2**attempt), self._retry.max_delay_seconds
+        )
+        return delay_seconds

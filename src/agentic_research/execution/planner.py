@@ -1,4 +1,5 @@
 """Deterministic experiment and falsification planning."""
+
 from __future__ import annotations
 
 import hashlib
@@ -7,7 +8,12 @@ from pathlib import Path
 from typing import Literal
 
 from agentic_research.schemas.phase6 import Hypothesis
-from agentic_research.schemas.phase7 import DatasetManifest, ExperimentSpec, FalsificationPlan, SandboxPolicy
+from agentic_research.schemas.phase7 import (
+    DatasetManifest,
+    ExperimentSpec,
+    FalsificationPlan,
+    SandboxPolicy,
+)
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -33,10 +39,16 @@ def build_falsification_plan(
         hypothesis_id=hypothesis.hypothesis_id,
         primary_metric=primary_metric,
         metric_direction=metric_direction,
-        null_hypothesis=f"The proposed effect of hypothesis {hypothesis.hypothesis_id} is absent under the prespecified controls.",
+        null_hypothesis=(
+            f"The proposed effect of hypothesis {hypothesis.hypothesis_id} "
+            f"is absent under the prespecified controls."
+        ),
         rejection_criteria=[
             hypothesis.falsification_condition,
-            "Reject claimed success when the primary metric does not meet the prespecified threshold across seeds.",
+            (
+                "Reject claimed success when the primary metric does not "
+                "meet the prespecified threshold across seeds."
+            ),
         ],
         required_ablations=["remove the proposed mechanism", "remove any adjacent technique"],
         required_controls=["strongest appropriate baseline", "matched-data/control condition"],
@@ -63,25 +75,33 @@ def build_experiment_spec(
         raise ValueError("command must contain non-empty argv tokens")
     if not code_path.is_file():
         raise FileNotFoundError(code_path)
-    selected_seeds = sorted(set(seeds if seeds is not None else [1, 2, 3]))
+    raw_seeds = seeds if seeds is not None else [1, 2, 3]
+    if len(set(raw_seeds)) != len(list(raw_seeds)):
+        raise ValueError("Experiment seeds must be unique")
+    selected_seeds = sorted(set(raw_seeds))
     if not selected_seeds or any(seed < 0 for seed in selected_seeds):
         raise ValueError("at least one non-negative seed is required")
     code_hash = sha256_file(code_path)
-    falsification = build_falsification_plan(hypothesis, primary_metric, metric_direction=metric_direction)
-    experiment_id = "exp:" + hashlib.sha256(
-        json.dumps(
-            {
-                "hypothesis_id": hypothesis.hypothesis_id,
-                "code_sha256": code_hash,
-                "code_path": code_path.name,
-                "command": command,
-                "seeds": selected_seeds,
-                "metric_direction": metric_direction,
-                "datasets": [dataset.dataset_id for dataset in datasets],
-            },
-            sort_keys=True,
-        ).encode("utf-8")
-    ).hexdigest()[:20]
+    falsification = build_falsification_plan(
+        hypothesis, primary_metric, metric_direction=metric_direction
+    )
+    experiment_id = (
+        "exp:"
+        + hashlib.sha256(
+            json.dumps(
+                {
+                    "hypothesis_id": hypothesis.hypothesis_id,
+                    "code_sha256": code_hash,
+                    "code_path": code_path.name,
+                    "command": command,
+                    "seeds": selected_seeds,
+                    "metric_direction": metric_direction,
+                    "datasets": [dataset.dataset_id for dataset in datasets],
+                },
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()[:20]
+    )
     return ExperimentSpec(
         experiment_id=experiment_id,
         hypothesis_id=hypothesis.hypothesis_id,

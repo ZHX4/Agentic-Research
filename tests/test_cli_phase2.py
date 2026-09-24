@@ -23,7 +23,9 @@ def test_cli_calibrate(tmp_path: Path) -> None:
         + "\n",
         encoding="utf-8",
     )
-    result = CliRunner().invoke(app, ["calibrate", "--input", str(input_path), "--output", str(output_path)])
+    result = CliRunner().invoke(
+        app, ["calibrate", "--input", str(input_path), "--output", str(output_path)]
+    )
     assert result.exit_code == 0
     report = json.loads(output_path.read_text(encoding="utf-8"))
     assert report["sample_count"] == 2

@@ -36,20 +36,26 @@ def test_local_world_graph_exact_match_is_disproof(tmp_path: Path) -> None:
     with ScientificWorldModel(tmp_path / "world.sqlite") as world:
         world.upsert_paper(Paper(paper_id="prior", title="Prior", year=2024))
         paper_node = "paper:prior"
-        world.upsert_node(WorldNode(node_id=paper_node, node_type="paper", paper_id="prior", label="Prior"))
+        world.upsert_node(
+            WorldNode(node_id=paper_node, node_type="paper", paper_id="prior", label="Prior")
+        )
         for value, kind, edge_type in (
             ("Method Alpha", "method", "has_method"),
             ("Dataset Beta", "dataset", "has_dataset"),
             ("Task Gamma", "task", "has_task"),
         ):
             node_id = _entity_id(kind, value)
-            world.upsert_node(WorldNode(node_id=node_id, node_type=kind, label=value))
+            # Test helper passes schema-valid node/edge literals through str-typed
+            # plumbing; values are runtime-validated by the world-model schemas.
+            world.upsert_node(
+                WorldNode(node_id=node_id, node_type=kind, label=value)  # type: ignore[arg-type]
+            )
             world.upsert_edge(
                 WorldEdge(
                     edge_id=f"{edge_type}:prior:{node_id}",
                     source_id=paper_node,
                     target_id=node_id,
-                    edge_type=edge_type,
+                    edge_type=edge_type,  # type: ignore[arg-type]
                 )
             )
         world.upsert_chunk(

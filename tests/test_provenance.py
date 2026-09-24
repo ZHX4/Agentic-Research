@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -7,7 +7,7 @@ from agentic_research.provenance import ProvenanceEdge
 
 
 def test_provenance_edge_accepts_known_relation() -> None:
-    created_at = datetime.now(timezone.utc)
+    created_at = datetime.now(UTC)
     edge = ProvenanceEdge(
         source_id="paper:p1",
         target_id="claim:c1",
@@ -23,10 +23,12 @@ def test_provenance_edge_accepts_known_relation() -> None:
 
 def test_provenance_edge_rejects_unknown_relation() -> None:
     with pytest.raises(ValidationError):
-        ProvenanceEdge(
-            source_id="paper:p1",
-            target_id="claim:c1",
-            relation="invented_relation",
-            agent="paper-analyzer",
-            confidence=0.9,
+        ProvenanceEdge.model_validate(
+            {
+                "source_id": "paper:p1",
+                "target_id": "claim:c1",
+                "relation": "invented_relation",
+                "agent": "paper-analyzer",
+                "confidence": 0.9,
+            }
         )

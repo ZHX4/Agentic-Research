@@ -4,7 +4,8 @@ These models preserve document structure and provenance. They do not assert
 scientific truth; extracted claims remain evidence candidates until evaluated.
 """
 
-from datetime import datetime, timezone
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -13,7 +14,7 @@ from .paper import Evidence
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class BoundingBox(BaseModel):
@@ -176,13 +177,19 @@ class StructuredExtraction(BaseModel):
 
         for section in self.sections:
             self._require_paper_id(section.paper_id)
-            if section.parent_section_id is not None and section.parent_section_id not in section_ids:
+            if (
+                section.parent_section_id is not None
+                and section.parent_section_id not in section_ids
+            ):
                 raise ValueError(f"Unknown parent_section_id: {section.parent_section_id}")
         for chunk in self.chunks:
             self._require_paper_id(chunk.paper_id)
             if chunk.section_id is not None and chunk.section_id not in section_ids:
                 raise ValueError(f"Unknown chunk section_id: {chunk.section_id}")
-        for record in [*self.tables, *self.figures, *self.references, *self.evidence, *self.claims]:
+        records: list[
+            TableRecord | FigureRecord | CitationReference | Evidence | ExtractedClaim
+        ] = [*self.tables, *self.figures, *self.references, *self.evidence, *self.claims]
+        for record in records:
             self._require_paper_id(record.paper_id)
         for claim in self.claims:
             if claim.chunk_id not in chunk_ids:
@@ -193,8 +200,13 @@ class StructuredExtraction(BaseModel):
             self._require_paper_id(edge.citing_paper_id)
             if edge.cited_reference_id not in reference_ids:
                 raise ValueError(f"Unknown cited_reference_id: {edge.cited_reference_id}")
-            if edge.citation_context_chunk_id is not None and edge.citation_context_chunk_id not in chunk_ids:
-                raise ValueError(f"Unknown citation_context_chunk_id: {edge.citation_context_chunk_id}")
+            if (
+                edge.citation_context_chunk_id is not None
+                and edge.citation_context_chunk_id not in chunk_ids
+            ):
+                raise ValueError(
+                    f"Unknown citation_context_chunk_id: {edge.citation_context_chunk_id}"
+                )
         for link in self.claim_links:
             if link.claim_id not in claim_ids:
                 raise ValueError(f"Unknown claim_id: {link.claim_id}")
@@ -207,7 +219,7 @@ class StructuredExtraction(BaseModel):
             raise ValueError(f"Object belongs to paper_id={paper_id!r}, expected {self.paper_id!r}")
 
     @staticmethod
-    def _require_unique(attribute: str, items: list[BaseModel]) -> None:
+    def _require_unique(attribute: str, items: Sequence[BaseModel]) -> None:
         values = [getattr(item, attribute) for item in items]
         if len(values) != len(set(values)):
             raise ValueError(f"Duplicate {attribute} values are not allowed")

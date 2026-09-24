@@ -24,7 +24,7 @@ class SemanticScholarAdapter(LiteratureRetriever):
         *,
         api_key: str | None = None,
         client: HttpClient | None = None,
-        user_agent: str = "Agentic-Research/0.2 (+https://github.com/ZHX4/Agentic-Research)",
+        user_agent: str = "Agentic-Research/1.2.0 (+https://github.com/ZHX4/Agentic-Research)",
         timeout_seconds: float = 30.0,
         min_interval_seconds: float = 1.0,
     ) -> None:
@@ -55,7 +55,11 @@ class SemanticScholarAdapter(LiteratureRetriever):
             high = query.year_to or query.temporal_cutoff or 2200
             if query.temporal_cutoff is not None:
                 high = min(high, query.temporal_cutoff)
-            if query.year_from is not None or query.year_to is not None or query.temporal_cutoff is not None:
+            if (
+                query.year_from is not None
+                or query.year_to is not None
+                or query.temporal_cutoff is not None
+            ):
                 params["year"] = f"{low}-{high}"
 
             payload = self._client.get(_BASE_URL, params=params).json()

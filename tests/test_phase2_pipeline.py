@@ -46,7 +46,9 @@ def test_end_to_end_pipeline(tmp_path: Path) -> None:
     evidence_ids = {item.evidence_id for item in enriched.evidence}
     assert all(link.evidence_id in evidence_ids for link in extraction.claim_links)
     assert enriched.metadata["phase2_extraction"]["field_values_are_candidates"] is True
-    assert all(claim.section_id != extraction.sections[-1].section_id for claim in extraction.claims)
+    assert all(
+        claim.section_id != extraction.sections[-1].section_id for claim in extraction.claims
+    )
 
 
 def test_references_stop_before_appendix(tmp_path: Path) -> None:
@@ -56,7 +58,9 @@ def test_references_stop_before_appendix(tmp_path: Path) -> None:
     _, extraction = extract_paper_intelligence(paper, pdf)
     assert len(extraction.references) == 1
     assert all("Appendix content" not in reference.raw_text for reference in extraction.references)
-    appendix_sections = [section for section in extraction.sections if section.normalized_title == "appendix"]
+    appendix_sections = [
+        section for section in extraction.sections if section.normalized_title == "appendix"
+    ]
     assert appendix_sections
     appendix_id = appendix_sections[0].section_id
     assert all(claim.section_id != appendix_id for claim in extraction.claims)
@@ -66,11 +70,16 @@ def test_pipeline_can_apply_calibrated_confidence(tmp_path: Path) -> None:
     pdf = tmp_path / "paper.pdf"
     _make_paper_pdf(pdf)
     paper = Paper(paper_id="p1", title="A Study on Retrieval", year=2025)
-    calibrator = IsotonicCalibrator.fit([
-        CalibrationExample(raw_confidence=0.1, correct=False),
-        CalibrationExample(raw_confidence=0.9, correct=True),
-    ])
+    calibrator = IsotonicCalibrator.fit(
+        [
+            CalibrationExample(raw_confidence=0.1, correct=False),
+            CalibrationExample(raw_confidence=0.9, correct=True),
+        ]
+    )
     enriched, extraction = extract_paper_intelligence(paper, pdf, calibrator=calibrator)
     assert enriched.metadata["phase2_extraction"]["calibration_applied"] is True
     assert all(claim.calibrated_confidence is not None for claim in extraction.claims)
-    assert all(item.confidence == claim.calibrated_confidence for item, claim in zip(extraction.evidence, extraction.claims, strict=True))
+    assert all(
+        item.confidence == claim.calibrated_confidence
+        for item, claim in zip(extraction.evidence, extraction.claims, strict=True)
+    )

@@ -1,15 +1,16 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from agentic_research.autonomy.controller import AutonomousController, StageAdapter
 from agentic_research.autonomy.reviewers import DeterministicReviewer, Reviewer, ReviewPanel
 from agentic_research.autonomy.state_store import SQLiteRunStore
-from agentic_research.schemas.phase9 import AutonomousRunConfig, ReviewerFinding
+from agentic_research.schemas.phase9 import AutonomousRunConfig, ReviewerFinding, StageName
 
 
 def _adapters() -> list[StageAdapter]:
-    def make(stage: str):
+    def make(stage: StageName) -> Callable[[dict[str, object]], dict[str, object]]:
         def run(payload: dict[str, object]) -> dict[str, object]:
             digest = stage
             result: dict[str, object] = {
@@ -29,15 +30,26 @@ def _adapters() -> list[StageAdapter]:
                 result["evaluation_ids"] = [f"evaluation:{digest}"]
                 result["cases_evaluated"] = 1
             return result
+
         return run
 
-    return [StageAdapter(stage, make(stage)) for stage in ("gap", "verify", "hypothesis", "execute", "evaluate", "report")]
+    stage_names: tuple[StageName, ...] = (
+        "gap",
+        "verify",
+        "hypothesis",
+        "execute",
+        "evaluate",
+        "report",
+    )
+    return [StageAdapter(stage, make(stage)) for stage in stage_names]
 
 
 class CriticalReviseReviewer(Reviewer):
     reviewer_id = "reviewer-critical-test-v1"
 
-    def review(self, iteration: int, target_kind: str, target_id: str, artifact: dict[str, object]) -> ReviewerFinding:
+    def review(
+        self, iteration: int, target_kind: str, target_id: str, artifact: dict[str, object]
+    ) -> ReviewerFinding:
         return ReviewerFinding(
             finding_id=f"critical:{iteration}:{target_kind}:{target_id}",
             reviewer_id=self.reviewer_id,
@@ -55,7 +67,9 @@ def test_critical_finding_stops_even_when_decision_is_revise(tmp_path: Path) -> 
     store = SQLiteRunStore(tmp_path / "run.sqlite")
     panel = ReviewPanel([CriticalReviseReviewer(), DeterministicReviewer()])
     controller = AutonomousController(store, _adapters(), reviewers=panel)
-    controller.create("critical-run", AutonomousRunConfig(max_iterations=1, stop_on_critical_review=True))
+    controller.create(
+        "critical-run", AutonomousRunConfig(max_iterations=1, stop_on_critical_review=True)
+    )
 
     state = controller.run("critical-run", {"provenance_refs": ["input:test"]})
 
@@ -63,14 +77,18 @@ def test_critical_finding_stops_even_when_decision_is_revise(tmp_path: Path) -> 
     assert state.stop_reason == "Critical reviewer finding(s): 5"
     assert len(state.reviews) == 5
     assert all(review.critical_count == 1 for review in state.reviews)
-    assert not any(stage.stage == "report" and stage.status == "succeeded" for stage in state.stage_executions)
+    assert not any(
+        stage.stage == "report" and stage.status == "succeeded" for stage in state.stage_executions
+    )
 
 
 def test_critical_review_can_be_configured_not_to_stop(tmp_path: Path) -> None:
     store = SQLiteRunStore(tmp_path / "run.sqlite")
     panel = ReviewPanel([CriticalReviseReviewer(), DeterministicReviewer()])
     controller = AutonomousController(store, _adapters(), reviewers=panel)
-    controller.create("nonstop-run", AutonomousRunConfig(max_iterations=1, stop_on_critical_review=False))
+    controller.create(
+        "nonstop-run", AutonomousRunConfig(max_iterations=1, stop_on_critical_review=False)
+    )
 
     state = controller.run("nonstop-run", {"provenance_refs": ["input:test"]})
 

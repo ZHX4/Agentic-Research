@@ -6,7 +6,6 @@ from collections import OrderedDict
 
 from agentic_research.literature.identity import canonical_identity, deduplicate_papers
 from agentic_research.retrieval.contracts import LiteratureRetriever, SearchHit, SearchQuery
-from agentic_research.schemas import Paper
 
 
 class LiteratureService:
@@ -50,7 +49,7 @@ class LiteratureService:
             if callable(close):
                 close()
 
-    def __enter__(self) -> "LiteratureService":
+    def __enter__(self) -> LiteratureService:
         return self
 
     def __exit__(self, *_: object) -> None:

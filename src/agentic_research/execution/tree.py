@@ -1,10 +1,16 @@
 """Experiment search-tree construction and deterministic branching."""
+
 from __future__ import annotations
 
 import hashlib
 from typing import Literal
 
-from agentic_research.schemas.phase7 import ExperimentNode, ExperimentResult, ExperimentSearchTree, ExperimentSpec
+from agentic_research.schemas.phase7 import (
+    ExperimentNode,
+    ExperimentResult,
+    ExperimentSearchTree,
+    ExperimentSpec,
+)
 
 TreeRelation = Literal["mutation", "ablation", "replication", "branch"]
 
@@ -31,9 +37,15 @@ def create_tree(spec: ExperimentSpec) -> ExperimentSearchTree:
     )
 
 
-def append_result(tree: ExperimentSearchTree, result: ExperimentResult, relation: TreeRelation = "replication") -> ExperimentSearchTree:
+def append_result(
+    tree: ExperimentSearchTree, result: ExperimentResult, relation: TreeRelation = "replication"
+) -> ExperimentSearchTree:
     parent = next(
-        (node for node in reversed(tree.nodes) if node.status in {"planned", "running", "succeeded"}),
+        (
+            node
+            for node in reversed(tree.nodes)
+            if node.status in {"planned", "running", "succeeded"}
+        ),
         tree.nodes[-1],
     )
     node = ExperimentNode(

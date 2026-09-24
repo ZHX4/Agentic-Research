@@ -1,3 +1,5 @@
+import typing
+
 import httpx
 
 from agentic_research.literature.sources.arxiv import ArxivAdapter
@@ -5,7 +7,6 @@ from agentic_research.literature.sources.openalex import OpenAlexAdapter
 from agentic_research.literature.sources.semantic_scholar import SemanticScholarAdapter
 from agentic_research.literature.transport import HttpClient, RateLimiter
 from agentic_research.retrieval.contracts import SearchQuery
-
 
 ARXIV_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom">
@@ -23,8 +24,12 @@ ARXIV_XML = """<?xml version="1.0" encoding="UTF-8"?>
 """
 
 
-def _client(handler) -> HttpClient:
-    return HttpClient(user_agent="test", rate_limiter=RateLimiter(0), transport=httpx.MockTransport(handler))
+def _client(
+    handler: typing.Callable[[httpx.Request], httpx.Response],
+) -> HttpClient:
+    return HttpClient(
+        user_agent="test", rate_limiter=RateLimiter(0), transport=httpx.MockTransport(handler)
+    )
 
 
 def test_openalex_adapter_maps_response_and_cutoff() -> None:
@@ -70,7 +75,10 @@ def test_temporal_cutoff_excludes_unknown_years() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             200,
-            json={"meta": {"next_cursor": None}, "results": [{"id": "https://openalex.org/W1", "display_name": "Unknown"}]},
+            json={
+                "meta": {"next_cursor": None},
+                "results": [{"id": "https://openalex.org/W1", "display_name": "Unknown"}],
+            },
             request=request,
         )
 
@@ -96,7 +104,10 @@ def test_semantic_scholar_adapter_maps_response() -> None:
                         "authors": [{"name": "Alice"}],
                         "externalIds": {"DOI": "10.1234/ABC", "ArXiv": "2501.12345v2"},
                         "url": "https://semanticscholar.org/paper/S1",
-                        "openAccessPdf": {"url": "https://example.org/paper.pdf", "status": "GREEN"},
+                        "openAccessPdf": {
+                            "url": "https://example.org/paper.pdf",
+                            "status": "GREEN",
+                        },
                         "citationCount": 3,
                     }
                 ],
@@ -117,7 +128,9 @@ def test_arxiv_adapter_parses_atom_without_double_encoding_query() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         query = request.url.params["search_query"]
         assert query == 'all:"machine learning"'
-        return httpx.Response(200, text=ARXIV_XML, request=request, headers={"content-type": "application/atom+xml"})
+        return httpx.Response(
+            200, text=ARXIV_XML, request=request, headers={"content-type": "application/atom+xml"}
+        )
 
     with _client(handler) as client:
         adapter = ArxivAdapter(client=client)

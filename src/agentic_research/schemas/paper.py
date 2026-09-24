@@ -1,6 +1,6 @@
 """Domain models for papers, evidence, and experiment outcomes."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 def utcnow() -> datetime:
     """Return a timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Evidence(BaseModel):

@@ -4,7 +4,6 @@ from typer.testing import CliRunner
 
 from agentic_research.cli import app
 
-
 runner = CliRunner()
 
 

@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+from agentic_research.schemas import Paper
 from agentic_research.schemas.gap import GapCandidate, GapStatus
-from agentic_research.schemas.phase5 import Counterevidence, GapVerificationResult, NoveltyVerificationConfig
+from agentic_research.schemas.phase5 import (
+    Counterevidence,
+    GapVerificationResult,
+    NoveltyVerificationConfig,
+    PriorWorkMatch,
+)
 from agentic_research.verification.novelty import NoveltyVerifier
 
 
@@ -14,7 +20,9 @@ def _world_key(value: str) -> str:
 class AdversarialNoveltyVerifier(NoveltyVerifier):
     """Apply conservative decision rules to Phase 5 retrieval evidence."""
 
-    def _local_exact_matches(self, candidate: GapCandidate, temporal_cutoff: int | None) -> set[str]:
+    def _local_exact_matches(
+        self, candidate: GapCandidate, temporal_cutoff: int | None
+    ) -> set[str]:
         if self.world is None:
             return set()
         candidate_method = _world_key(candidate.method or "")
@@ -24,10 +32,13 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
             return set()
 
         if temporal_cutoff is None:
-            paper_rows = self.world.connection.execute("SELECT paper_id FROM papers ORDER BY paper_id").fetchall()
+            paper_rows = self.world.connection.execute(
+                "SELECT paper_id FROM papers ORDER BY paper_id"
+            ).fetchall()
         else:
             paper_rows = self.world.connection.execute(
-                "SELECT paper_id FROM papers WHERE year IS NOT NULL AND year <= ? ORDER BY paper_id",
+                "SELECT paper_id FROM papers WHERE year IS NOT NULL AND year <= ? "
+                "ORDER BY paper_id",
                 (temporal_cutoff,),
             ).fetchall()
         paper_ids = {str(row["paper_id"]) for row in paper_rows}
@@ -52,7 +63,11 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
             ordered_ids,
         ).fetchall()
         for row in rows:
-            paper_id = row["source_id"][len("paper:"):] if row["source_id"].startswith("paper:") else row["source_id"]
+            paper_id = (
+                row["source_id"][len("paper:") :]
+                if row["source_id"].startswith("paper:")
+                else row["source_id"]
+            )
             if paper_id in paper_ids and row["edge_type"] in field_map:
                 field_map[row["edge_type"]][paper_id].add(_world_key(row["label"]))
 
@@ -67,13 +82,17 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
             matches.add(paper_id)
         return matches
 
-    def verify(self, candidate: GapCandidate, config: NoveltyVerificationConfig | None = None) -> GapVerificationResult:
+    def verify(
+        self, candidate: GapCandidate, config: NoveltyVerificationConfig | None = None
+    ) -> GapVerificationResult:
         cfg = config or NoveltyVerificationConfig()
         result = super().verify(candidate, cfg)
         if result.verdict == "supported" and not result.prior_work:
             inconclusive = result.verified_candidate.model_copy(
                 update={
-                    "status": GapStatus.UNCERTAIN if cfg.allow_status_transition else GapStatus.CANDIDATE,
+                    "status": GapStatus.UNCERTAIN
+                    if cfg.allow_status_transition
+                    else GapStatus.CANDIDATE,
                     "confidence": min(result.confidence, 0.25),
                 }
             )
@@ -82,13 +101,28 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
                     "verdict": "inconclusive",
                     "resulting_status": inconclusive.status,
                     "confidence": min(result.confidence, 0.25),
-                    "rationale": "Search probes completed but returned no prior-work evidence; absence of results is insufficient to support a novelty conclusion.",
-                    "limitations": sorted(set(result.limitations + ["No prior-work evidence was retrieved; search completion alone does not establish novelty."])),
+                    "rationale": (
+                        "Search probes completed but returned no prior-work evidence; absence "
+                        "of results is insufficient to support a novelty conclusion."
+                    ),
+                    "limitations": sorted(
+                        set(
+                            result.limitations
+                            + [
+                                "No prior-work evidence was retrieved; search completion alone "
+                                "does not establish novelty."
+                            ]
+                        )
+                    ),
                     "verified_candidate": inconclusive,
                 }
             )
 
-        local_exact = self._local_exact_matches(candidate, cfg.temporal_cutoff) if cfg.include_local else set()
+        local_exact = (
+            self._local_exact_matches(candidate, cfg.temporal_cutoff)
+            if cfg.include_local
+            else set()
+        )
         adjusted_matches = []
         exact_ids = set()
         existing_match_ids = {match.paper.paper_id for match in result.prior_work}
@@ -100,7 +134,10 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
                         "exact_combination": True,
                         "challenge_type": "direct",
                         "similarity": 1.0,
-                        "rationale": "The local scientific world model explicitly contains the candidate method/dataset/task combination.",
+                        "rationale": (
+                            "The local scientific world model explicitly contains the candidate "
+                            "method/dataset/task combination."
+                        ),
                     }
                 )
                 adjusted_matches.append(adjusted)
@@ -108,21 +145,21 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
             else:
                 adjusted_matches.append(match)
 
-        # Graph-level exact matches can be authoritative even when lexical retrieval did not surface the paper.
+        # Graph-level exact matches can be authoritative even when lexical retrieval did
+        # not surface the paper.
         missing_graph_matches = sorted(local_exact - existing_match_ids)
         for paper_id in missing_graph_matches:
             if self.world is None:
                 continue
             row = self.world.connection.execute(
-                "SELECT paper_id,title,year,source,doi,arxiv_id,metadata_json FROM papers WHERE paper_id = ?",
+                "SELECT paper_id,title,year,source,doi,arxiv_id,metadata_json FROM papers "
+                "WHERE paper_id = ?",
                 (paper_id,),
             ).fetchone()
             if row is None:
                 continue
             paper = self._paper_from_row(row)
-            adjusted_matches.append(
-                self._graph_prior_match(candidate, paper)
-            )
+            adjusted_matches.append(self._graph_prior_match(candidate, paper))
             exact_ids.add(paper_id)
 
         adjusted_matches.sort(key=lambda item: (-item.similarity, item.paper.paper_id))
@@ -139,10 +176,16 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
                         paper_id=paper_id,
                         source="local-world-model",
                         query="local-world-model graph exact-combination check",
-                        claim="Exact method/dataset/task combination is present in the indexed world model.",
+                        claim=(
+                            "Exact method/dataset/task combination is present in the indexed "
+                            "world model."
+                        ),
                         severity="high",
                         supports_gap=False,
-                        rationale="Graph-level evidence directly contradicts the Phase 4 missing-combination candidate.",
+                        rationale=(
+                            "Graph-level evidence directly contradicts the Phase 4 "
+                            "missing-combination candidate."
+                        ),
                     )
                 )
 
@@ -164,14 +207,16 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
                 "prior_work": adjusted_matches[:25],
                 "counterevidence": counterevidence[:25],
                 "nearest_prior_work_ids": [match.paper.paper_id for match in adjusted_matches[:10]],
-                "rationale": "The local scientific world model explicitly contains the candidate combination; the candidate gap is therefore disproved within the indexed corpus.",
+                "rationale": (
+                    "The local scientific world model explicitly contains the candidate "
+                    "combination; the candidate gap is therefore disproved within the indexed "
+                    "corpus."
+                ),
                 "verified_candidate": verified,
             }
         )
 
-    def _graph_prior_match(self, candidate: GapCandidate, paper):
-        from agentic_research.schemas.phase5 import PriorWorkMatch
-
+    def _graph_prior_match(self, candidate: GapCandidate, paper: Paper) -> PriorWorkMatch:
         return PriorWorkMatch(
             match_id=f"match:{candidate.gap_id}:{paper.paper_id}",
             paper=paper,
@@ -184,5 +229,8 @@ class AdversarialNoveltyVerifier(NoveltyVerifier):
             title_overlap=0.0,
             exact_combination=True,
             challenge_type="direct",
-            rationale="Exact candidate entity combination found by direct graph inspection, independent of lexical chunk retrieval.",
+            rationale=(
+                "Exact candidate entity combination found by direct graph inspection, "
+                "independent of lexical chunk retrieval."
+            ),
         )

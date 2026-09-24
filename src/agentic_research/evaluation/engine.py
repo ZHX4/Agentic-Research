@@ -1,4 +1,5 @@
 """Benchmark orchestration with explicit temporal and provenance safeguards."""
+
 from __future__ import annotations
 
 import hashlib
@@ -6,8 +7,24 @@ import json
 from statistics import mean
 from typing import Literal
 
-from agentic_research.schemas.phase8 import BenchmarkCase, BenchmarkResult, CostRecord, MetricValue, PredictionRecord
-from .metrics import average_precision_at_k, binary_classification_metrics, bootstrap_mean_ci, macro_field_f1, mean_reciprocal_rank, ndcg_at_k, precision_recall_f1, temporal_leakage
+from agentic_research.schemas.phase8 import (
+    BenchmarkCase,
+    BenchmarkResult,
+    CostRecord,
+    MetricValue,
+    PredictionRecord,
+)
+
+from .metrics import (
+    average_precision_at_k,
+    binary_classification_metrics,
+    bootstrap_mean_ci,
+    macro_field_f1,
+    mean_reciprocal_rank,
+    ndcg_at_k,
+    precision_recall_f1,
+    temporal_leakage,
+)
 from .validation import validate_prediction_coverage
 
 
@@ -19,7 +36,15 @@ def _validate_inputs(cases: list[BenchmarkCase], predictions: list[PredictionRec
     validate_prediction_coverage(cases, predictions)
 
 
-def evaluate_retrieval(cases: list[BenchmarkCase], predictions: list[PredictionRecord], *, system_name: str, benchmark_id: str, split: Literal["dev", "test"] = "test", k: int = 10) -> BenchmarkResult:
+def evaluate_retrieval(
+    cases: list[BenchmarkCase],
+    predictions: list[PredictionRecord],
+    *,
+    system_name: str,
+    benchmark_id: str,
+    split: Literal["dev", "test"] = "test",
+    k: int = 10,
+) -> BenchmarkResult:
     if k < 1:
         raise ValueError("k must be positive")
     _validate_inputs(cases, predictions)
@@ -38,37 +63,123 @@ def evaluate_retrieval(cases: list[BenchmarkCase], predictions: list[PredictionR
     precisions: list[float] = []
     recalls: list[float] = []
     f1s: list[float] = []
-    for got, expected in zip(ranked, gold):
+    for got, expected in zip(ranked, gold, strict=False):
         p, r, f = precision_recall_f1(got[:k], expected)
         precisions.append(p)
         recalls.append(r)
         f1s.append(f)
-    return BenchmarkResult(run_id=stable_run_id(benchmark_id, system_name, split, json.dumps([c.case_id for c in cases], sort_keys=True)), benchmark_id=benchmark_id, kind="retrieval", system_name=system_name, split=split, cases_evaluated=len(cases), metrics=[MetricValue(name=f"precision@{k}", value=mean(precisions) if precisions else 0.0, n=len(cases)), MetricValue(name=f"recall@{k}", value=mean(recalls) if recalls else 0.0), MetricValue(name=f"f1@{k}", value=mean(f1s) if f1s else 0.0, n=len(cases)), MetricValue(name="mrr", value=mrr, n=len(cases)), MetricValue(name=f"map@{k}", value=mean(aps) if aps else 0.0, n=len(cases)), MetricValue(name=f"ndcg@{k}", value=mean(ndcgs) if ndcgs else 0.0, n=len(cases))])
+    return BenchmarkResult(
+        run_id=stable_run_id(
+            benchmark_id, system_name, split, json.dumps([c.case_id for c in cases], sort_keys=True)
+        ),
+        benchmark_id=benchmark_id,
+        kind="retrieval",
+        system_name=system_name,
+        split=split,
+        cases_evaluated=len(cases),
+        metrics=[
+            MetricValue(
+                name=f"precision@{k}", value=mean(precisions) if precisions else 0.0, n=len(cases)
+            ),
+            MetricValue(name=f"recall@{k}", value=mean(recalls) if recalls else 0.0),
+            MetricValue(name=f"f1@{k}", value=mean(f1s) if f1s else 0.0, n=len(cases)),
+            MetricValue(name="mrr", value=mrr, n=len(cases)),
+            MetricValue(name=f"map@{k}", value=mean(aps) if aps else 0.0, n=len(cases)),
+            MetricValue(name=f"ndcg@{k}", value=mean(ndcgs) if ndcgs else 0.0, n=len(cases)),
+        ],
+    )
 
 
-def evaluate_extraction(cases: list[BenchmarkCase], predictions: list[PredictionRecord], *, system_name: str, benchmark_id: str, split: Literal["dev", "test"] = "test") -> BenchmarkResult:
+def evaluate_extraction(
+    cases: list[BenchmarkCase],
+    predictions: list[PredictionRecord],
+    *,
+    system_name: str,
+    benchmark_id: str,
+    split: Literal["dev", "test"] = "test",
+) -> BenchmarkResult:
     _validate_inputs(cases, predictions)
     by_id = {p.case_id: p for p in predictions}
     expected = [case.expected_fields for case in cases]
-    predicted = [by_id.get(case.case_id, PredictionRecord(case_id=case.case_id)).extracted_fields for case in cases]
-    exact = sum(1.0 if p == e else 0.0 for p, e in zip(predicted, expected)) / len(cases) if cases else 0.0
-    return BenchmarkResult(run_id=stable_run_id(benchmark_id, system_name, split), benchmark_id=benchmark_id, kind="extraction", system_name=system_name, split=split, cases_evaluated=len(cases), metrics=[MetricValue(name="exact_match", value=exact, n=len(cases)), MetricValue(name="macro_field_f1", value=macro_field_f1(predicted, expected), n=len(cases))])
+    predicted = [
+        by_id.get(case.case_id, PredictionRecord(case_id=case.case_id)).extracted_fields
+        for case in cases
+    ]
+    exact = (
+        sum(1.0 if p == e else 0.0 for p, e in zip(predicted, expected, strict=False)) / len(cases)
+        if cases
+        else 0.0
+    )
+    return BenchmarkResult(
+        run_id=stable_run_id(benchmark_id, system_name, split),
+        benchmark_id=benchmark_id,
+        kind="extraction",
+        system_name=system_name,
+        split=split,
+        cases_evaluated=len(cases),
+        metrics=[
+            MetricValue(name="exact_match", value=exact, n=len(cases)),
+            MetricValue(
+                name="macro_field_f1", value=macro_field_f1(predicted, expected), n=len(cases)
+            ),
+        ],
+    )
 
 
-def evaluate_labels(cases: list[BenchmarkCase], predictions: list[PredictionRecord], *, kind: Literal["gap", "novelty"], system_name: str, benchmark_id: str, positive: str | None = None, split: Literal["dev", "test"] = "test") -> BenchmarkResult:
+def evaluate_labels(
+    cases: list[BenchmarkCase],
+    predictions: list[PredictionRecord],
+    *,
+    kind: Literal["gap", "novelty"],
+    system_name: str,
+    benchmark_id: str,
+    positive: str | None = None,
+    split: Literal["dev", "test"] = "test",
+) -> BenchmarkResult:
     _validate_inputs(cases, predictions)
     by_id = {p.case_id: p for p in predictions}
     expected = [case.expected_labels[0] if case.expected_labels else "" for case in cases]
-    predicted = [by_id.get(case.case_id, PredictionRecord(case_id=case.case_id)).predicted_labels[0] if by_id.get(case.case_id) and by_id[case.case_id].predicted_labels else "" for case in cases]
+    predicted = [
+        by_id.get(case.case_id, PredictionRecord(case_id=case.case_id)).predicted_labels[0]
+        if by_id.get(case.case_id) and by_id[case.case_id].predicted_labels
+        else ""
+        for case in cases
+    ]
     if positive is not None:
         values = binary_classification_metrics(predicted, expected, positive)
-        metrics = [MetricValue(name=name, value=value, n=len(cases)) for name, value in values.items()]
+        metrics = [
+            MetricValue(name=name, value=value, n=len(cases)) for name, value in values.items()
+        ]
     else:
-        metrics = [MetricValue(name="accuracy", value=mean(1.0 if p == e else 0.0 for p, e in zip(predicted, expected)) if cases else 0.0, n=len(cases))]
-    return BenchmarkResult(run_id=stable_run_id(benchmark_id, system_name, split, kind), benchmark_id=benchmark_id, kind=kind, system_name=system_name, split=split, cases_evaluated=len(cases), metrics=metrics)
+        metrics = [
+            MetricValue(
+                name="accuracy",
+                value=mean(
+                    1.0 if p == e else 0.0 for p, e in zip(predicted, expected, strict=False)
+                )
+                if cases
+                else 0.0,
+                n=len(cases),
+            )
+        ]
+    return BenchmarkResult(
+        run_id=stable_run_id(benchmark_id, system_name, split, kind),
+        benchmark_id=benchmark_id,
+        kind=kind,
+        system_name=system_name,
+        split=split,
+        cases_evaluated=len(cases),
+        metrics=metrics,
+    )
 
 
-def evaluate_temporal(cases: list[BenchmarkCase], predictions: list[PredictionRecord], *, system_name: str, benchmark_id: str) -> BenchmarkResult:
+def evaluate_temporal(
+    cases: list[BenchmarkCase],
+    predictions: list[PredictionRecord],
+    *,
+    system_name: str,
+    benchmark_id: str,
+) -> BenchmarkResult:
     if not cases or any(case.cutoff_year is None for case in cases):
         raise ValueError("Every temporal case requires a cutoff_year")
     _validate_inputs(cases, predictions)
@@ -77,22 +188,55 @@ def evaluate_temporal(cases: list[BenchmarkCase], predictions: list[PredictionRe
     unknown: list[float] = []
     warnings: list[str] = []
     for case in cases:
-        stats = temporal_leakage(by_id.get(case.case_id, PredictionRecord(case_id=case.case_id)).publication_years, case.cutoff_year or 0)
+        stats = temporal_leakage(
+            by_id.get(case.case_id, PredictionRecord(case_id=case.case_id)).publication_years,
+            case.cutoff_year or 0,
+        )
         leakage.append(stats["leakage_rate"])
         unknown.append(stats["unknown_year_rate"])
         if stats["leakage_rate"] > 0:
             warnings.append(f"Temporal leakage detected in {case.case_id}")
-    return BenchmarkResult(run_id=stable_run_id(benchmark_id, system_name, "temporal_test"), benchmark_id=benchmark_id, kind="temporal", system_name=system_name, split="temporal_test", cases_evaluated=len(cases), metrics=[MetricValue(name="leakage_rate", value=mean(leakage), direction="lower", n=len(cases)), MetricValue(name="unknown_year_rate", value=mean(unknown), direction="lower", n=len(cases))], warnings=warnings)
+    return BenchmarkResult(
+        run_id=stable_run_id(benchmark_id, system_name, "temporal_test"),
+        benchmark_id=benchmark_id,
+        kind="temporal",
+        system_name=system_name,
+        split="temporal_test",
+        cases_evaluated=len(cases),
+        metrics=[
+            MetricValue(name="leakage_rate", value=mean(leakage), direction="lower", n=len(cases)),
+            MetricValue(
+                name="unknown_year_rate", value=mean(unknown), direction="lower", n=len(cases)
+            ),
+        ],
+        warnings=warnings,
+    )
 
 
 def summarize_cost(costs: list[CostRecord]) -> list[MetricValue]:
     if not costs:
         return []
+
     def avg(field: str) -> float | None:
         values = [getattr(item, field) for item in costs if getattr(item, field) is not None]
         return mean(values) if values else None
-    metrics = [MetricValue(name="mean_wall_seconds", value=mean(c.wall_seconds for c in costs), unit="seconds", n=len(costs))]
-    for field in ("cpu_seconds", "gpu_seconds", "peak_memory_mb", "input_tokens", "output_tokens", "estimated_cost_usd"):
+
+    metrics = [
+        MetricValue(
+            name="mean_wall_seconds",
+            value=mean(c.wall_seconds for c in costs),
+            unit="seconds",
+            n=len(costs),
+        )
+    ]
+    for field in (
+        "cpu_seconds",
+        "gpu_seconds",
+        "peak_memory_mb",
+        "input_tokens",
+        "output_tokens",
+        "estimated_cost_usd",
+    ):
         value = avg(field)
         if value is not None:
             metrics.append(MetricValue(name=f"mean_{field}", value=value, n=len(costs)))
@@ -101,4 +245,8 @@ def summarize_cost(costs: list[CostRecord]) -> list[MetricValue]:
 
 def temporal_bootstrap(values: list[float], *, seed: int = 0) -> MetricValue:
     lo, hi = bootstrap_mean_ci(values, seed=seed)
-    return MetricValue(name="mean_with_bootstrap_ci", value=mean(values) if values else 0.0, details={"ci_low": lo, "ci_high": hi, "n": len(values)})
+    return MetricValue(
+        name="mean_with_bootstrap_ci",
+        value=mean(values) if values else 0.0,
+        details={"ci_low": lo, "ci_high": hi, "n": len(values)},
+    )

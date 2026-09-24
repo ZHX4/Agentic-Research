@@ -19,6 +19,15 @@ GapSignalType = Literal[
 
 _ENTITY_KINDS = {"method", "dataset", "task", "metric", "baseline"}
 
+_DEFAULT_INCLUDE_TYPES: set[GapSignalType] = {
+    "missing_combination",
+    "contradiction",
+    "underexplored_condition",
+    "unresolved_limitation",
+    "cross_domain",
+    "graph_negative_space",
+}
+
 
 class GapDiscoveryConfig(BaseModel):
     """Controls for deterministic Phase 4 discovery algorithms."""
@@ -34,16 +43,7 @@ class GapDiscoveryConfig(BaseModel):
     max_underexplored_coverage: float = Field(default=0.2, gt=0, le=1)
     max_candidates_per_type: int = Field(default=200, ge=1, le=10000)
     temporal_cutoff: int | None = Field(default=None, ge=1900, le=2200)
-    include_types: set[GapSignalType] = Field(
-        default_factory=lambda: {
-            "missing_combination",
-            "contradiction",
-            "underexplored_condition",
-            "unresolved_limitation",
-            "cross_domain",
-            "graph_negative_space",
-        }
-    )
+    include_types: set[GapSignalType] = Field(default_factory=lambda: set(_DEFAULT_INCLUDE_TYPES))
 
 
 class GapSignal(BaseModel):
@@ -65,7 +65,7 @@ class GapSignal(BaseModel):
     provenance: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def remove_unresolved_entity_ids(self) -> "GapSignal":
+    def remove_unresolved_entity_ids(self) -> GapSignal:
         self.node_ids = sorted(
             dict.fromkeys(
                 node_id
@@ -88,7 +88,7 @@ class GapDiscoveryResult(BaseModel):
     candidates: list[GapCandidate] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_signal_ids(self) -> "GapDiscoveryResult":
+    def validate_signal_ids(self) -> GapDiscoveryResult:
         signal_ids = [signal.signal_id for signal in self.signals]
         if len(signal_ids) != len(set(signal_ids)):
             raise ValueError("Duplicate signal_id values are not allowed")

@@ -1,9 +1,10 @@
 """Dataset, split, and prediction integrity validation for Phase 8 benchmarks."""
+
 from __future__ import annotations
 
 from collections import defaultdict
 
-from agentic_research.schemas.phase8 import BenchmarkCase, PredictionRecord
+from agentic_research.schemas.phase8 import BenchmarkCase, BenchmarkResult, PredictionRecord
 
 
 def validate_split_disjointness(splits: dict[str, list[BenchmarkCase]]) -> None:
@@ -22,14 +23,18 @@ def validate_split_disjointness(splits: dict[str, list[BenchmarkCase]]) -> None:
             case_to_splits[case.case_id].add(split)
             hash_to_splits[case.input_hash].add(split)
     leaked_cases = {case_id: names for case_id, names in case_to_splits.items() if len(names) > 1}
-    leaked_inputs = {input_hash: names for input_hash, names in hash_to_splits.items() if len(names) > 1}
+    leaked_inputs = {
+        input_hash: names for input_hash, names in hash_to_splits.items() if len(names) > 1
+    }
     if leaked_cases:
         raise ValueError(f"Case IDs overlap across splits: {sorted(leaked_cases)}")
     if leaked_inputs:
         raise ValueError(f"Input hashes overlap across splits: {sorted(leaked_inputs)}")
 
 
-def validate_prediction_coverage(cases: list[BenchmarkCase], predictions: list[PredictionRecord]) -> None:
+def validate_prediction_coverage(
+    cases: list[BenchmarkCase], predictions: list[PredictionRecord]
+) -> None:
     case_ids = {case.case_id for case in cases}
     prediction_ids = [prediction.case_id for prediction in predictions]
     if len(prediction_ids) != len(set(prediction_ids)):
@@ -37,3 +42,18 @@ def validate_prediction_coverage(cases: list[BenchmarkCase], predictions: list[P
     unknown = set(prediction_ids) - case_ids
     if unknown:
         raise ValueError(f"Predictions contain unknown case IDs: {sorted(unknown)}")
+
+
+def validate_benchmark_results(benchmarks: list[BenchmarkResult], system_name: str) -> None:
+    """Ensure composite reports only combine results for one system."""
+    if not system_name:
+        raise ValueError("system_name must not be empty")
+    run_ids = [item.run_id for item in benchmarks]
+    if len(run_ids) != len(set(run_ids)):
+        raise ValueError("Duplicate benchmark run IDs are not allowed")
+    for item in benchmarks:
+        if item.system_name != system_name:
+            raise ValueError(
+                f"Benchmark {item.run_id!r} belongs to system {item.system_name!r}, "
+                f"expected {system_name!r}"
+            )

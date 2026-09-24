@@ -1,4 +1,5 @@
 """Restricted Docker execution for scientific experiments."""
+
 from __future__ import annotations
 
 import hashlib
@@ -10,7 +11,12 @@ import subprocess
 import time
 from pathlib import Path
 
-from agentic_research.schemas.phase7 import ArtifactRecord, ExperimentSpec, SeedRun
+from agentic_research.schemas.phase7 import (
+    ArtifactRecord,
+    ExecutionStatus,
+    ExperimentSpec,
+    SeedRun,
+)
 
 
 class SandboxViolation(RuntimeError):
@@ -28,11 +34,20 @@ class DockerSandboxExecutor:
             raise SandboxViolation("Command must be a non-empty argv list")
         forbidden = {"--privileged", "--network=host", "--pid=host", "--ipc=host", "-v", "--volume"}
         if any(token in forbidden for token in command):
-            raise SandboxViolation("Docker mount/privilege flags are forbidden inside experiment argv")
+            raise SandboxViolation(
+                "Docker mount/privilege flags are forbidden inside experiment argv"
+            )
 
     def _image_digest(self, image: str) -> str:
         completed = subprocess.run(
-            [self.docker_binary, "image", "inspect", image, "--format", "{{.Id}}|{{json .RepoDigests}}"],
+            [
+                self.docker_binary,
+                "image",
+                "inspect",
+                image,
+                "--format",
+                "{{.Id}}|{{json .RepoDigests}}",
+            ],
             capture_output=True,
             text=True,
             check=True,
@@ -66,7 +81,9 @@ class DockerSandboxExecutor:
     def _safe_name(value: str) -> str:
         return re.sub(r"[^A-Za-z0-9._-]+", "_", value)[:80] or "dataset"
 
-    def execute_seed(self, spec: ExperimentSpec, *, seed: int, code_dir: Path, artifact_dir: Path) -> SeedRun:
+    def execute_seed(
+        self, spec: ExperimentSpec, *, seed: int, code_dir: Path, artifact_dir: Path
+    ) -> SeedRun:
         self._validate_command(spec.command)
         if seed not in spec.seeds:
             raise ValueError(f"Seed {seed} is not declared by the experiment spec")
@@ -74,8 +91,12 @@ class DockerSandboxExecutor:
             raise FileNotFoundError(code_dir)
         code_path = (code_dir / spec.code_path).resolve()
         code_root = code_dir.resolve()
-        if not code_path.exists() or (code_path != code_root and code_root not in code_path.parents):
-            raise SandboxViolation("Planned code path must remain inside the supplied code directory")
+        if not code_path.exists() or (
+            code_path != code_root and code_root not in code_path.parents
+        ):
+            raise SandboxViolation(
+                "Planned code path must remain inside the supplied code directory"
+            )
         if self._sha256_path(code_path) != spec.code_sha256:
             raise SandboxViolation("Code SHA-256 does not match the planned experiment")
         artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -86,15 +107,24 @@ class DockerSandboxExecutor:
         if not spec.sandbox.network_enabled:
             command += ["--network", "none"]
         command += [
-            "--cap-drop", "ALL",
-            "--security-opt", "no-new-privileges:true",
-            "--pids-limit", str(spec.sandbox.pids_limit),
-            "--memory", f"{spec.sandbox.memory_mb}m",
-            "--cpus", str(spec.sandbox.cpu_count),
-            "--tmpfs", "/tmp:rw,noexec,nosuid,size=512m",
-            "-v", f"{code_root}:{spec.sandbox.workdir}:ro",
-            "-v", f"{artifact_dir.resolve()}:/outputs:rw",
-            "-w", spec.sandbox.workdir,
+            "--cap-drop",
+            "ALL",
+            "--security-opt",
+            "no-new-privileges:true",
+            "--pids-limit",
+            str(spec.sandbox.pids_limit),
+            "--memory",
+            f"{spec.sandbox.memory_mb}m",
+            "--cpus",
+            str(spec.sandbox.cpu_count),
+            "--tmpfs",
+            "/tmp:rw,noexec,nosuid,size=512m",
+            "-v",
+            f"{code_root}:{spec.sandbox.workdir}:ro",
+            "-v",
+            f"{artifact_dir.resolve()}:/outputs:rw",
+            "-w",
+            spec.sandbox.workdir,
         ]
         for dataset in spec.datasets:
             if not dataset.local_path:
@@ -112,21 +142,27 @@ class DockerSandboxExecutor:
             if key in os.environ:
                 command += ["-e", f"{key}={os.environ[key]}"]
         command += [
-            "-e", f"AGENTIC_RESEARCH_SEED={seed}",
-            "-e", "AGENTIC_RESEARCH_OUTPUT_DIR=/outputs",
-            "-e", "AGENTIC_RESEARCH_DATASET_ROOT=/datasets",
-            "-e", f"AGENTIC_RESEARCH_IMAGE_FINGERPRINT={image_digest}",
+            "-e",
+            f"AGENTIC_RESEARCH_SEED={seed}",
+            "-e",
+            "AGENTIC_RESEARCH_OUTPUT_DIR=/outputs",
+            "-e",
+            "AGENTIC_RESEARCH_DATASET_ROOT=/datasets",
+            "-e",
+            f"AGENTIC_RESEARCH_IMAGE_FINGERPRINT={image_digest}",
             spec.sandbox.image,
             *spec.command,
         ]
         started = time.monotonic()
-        status = "failed"
+        status: ExecutionStatus = "failed"
         exit_code: int | None = None
         stdout = b""
         stderr = b""
         error: str | None = None
         try:
-            completed = subprocess.run(command, capture_output=True, timeout=spec.sandbox.timeout_seconds, check=False)
+            completed = subprocess.run(
+                command, capture_output=True, timeout=spec.sandbox.timeout_seconds, check=False
+            )
             stdout, stderr = completed.stdout, completed.stderr
             exit_code = completed.returncode
             status = "succeeded" if exit_code == 0 else "failed"
@@ -186,10 +222,7 @@ def _collect_artifacts(root: Path) -> list[ArtifactRecord]:
 
 
 def environment_fingerprint(spec: ExperimentSpec, image_digest: str) -> str:
-    allowed_environment = {
-        key: os.environ.get(key)
-        for key in sorted(spec.sandbox.allowed_env)
-    }
+    allowed_environment = {key: os.environ.get(key) for key in sorted(spec.sandbox.allowed_env)}
     payload = json.dumps(
         {
             "image": spec.sandbox.image,
@@ -202,7 +235,11 @@ def environment_fingerprint(spec: ExperimentSpec, image_digest: str) -> str:
             "allow_gpu": spec.sandbox.allow_gpu,
             "allowed_env": allowed_environment,
             "datasets": [
-                {"dataset_id": dataset.dataset_id, "version": dataset.version, "sha256": dataset.sha256}
+                {
+                    "dataset_id": dataset.dataset_id,
+                    "version": dataset.version,
+                    "sha256": dataset.sha256,
+                }
                 for dataset in sorted(spec.datasets, key=lambda item: item.dataset_id)
             ],
             "code_sha256": spec.code_sha256,

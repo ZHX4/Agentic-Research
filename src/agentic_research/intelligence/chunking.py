@@ -50,7 +50,7 @@ def chunk_blocks(
             return
         section = assign_section(buffer[0], sections)
         digest = hashlib.sha1(
-            f"{paper_id}|{buffer[0].block_id}|{buffer[-1].block_id}|{text}".encode("utf-8")
+            f"{paper_id}|{buffer[0].block_id}|{buffer[-1].block_id}|{text}".encode()
         ).hexdigest()[:16]
         chunks.append(
             TextChunk(

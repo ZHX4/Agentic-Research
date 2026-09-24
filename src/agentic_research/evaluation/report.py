@@ -1,20 +1,37 @@
 """Composition and validation of Phase 8 evaluation reports."""
+
 from __future__ import annotations
 
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
-from agentic_research.schemas.phase8 import AblationResult, BaselineComparison, BenchmarkResult, CostRecord, EvaluationReport, HumanEvaluationResult
+from agentic_research.schemas.phase8 import (
+    AblationResult,
+    BaselineComparison,
+    BenchmarkResult,
+    CostRecord,
+    EvaluationReport,
+    HumanEvaluationResult,
+)
+
 from .validation import validate_benchmark_results
 
 
 def _load(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return cast("dict[str, Any]", json.loads(path.read_text(encoding="utf-8")))
 
 
-def build_report(system_name: str, *, benchmark_files: list[Path], human_files: list[Path] | None = None, baseline_files: list[Path] | None = None, ablation_files: list[Path] | None = None, cost_files: list[Path] | None = None) -> EvaluationReport:
+def build_report(
+    system_name: str,
+    *,
+    benchmark_files: list[Path],
+    human_files: list[Path] | None = None,
+    baseline_files: list[Path] | None = None,
+    ablation_files: list[Path] | None = None,
+    cost_files: list[Path] | None = None,
+) -> EvaluationReport:
     benchmarks = [BenchmarkResult.model_validate(_load(path)) for path in benchmark_files]
     validate_benchmark_results(benchmarks, system_name)
     humans = [HumanEvaluationResult.model_validate(_load(path)) for path in (human_files or [])]
@@ -26,5 +43,25 @@ def build_report(system_name: str, *, benchmark_files: list[Path], human_files: 
         if not isinstance(payload, list):
             raise ValueError(f"Cost file {path} must contain a JSON array")
         costs.extend(CostRecord.model_validate(item) for item in payload)
-    fingerprint = hashlib.sha256(json.dumps({"system": system_name, "benchmarks": [item.run_id for item in benchmarks], "humans": [item.evaluation_id for item in humans], "baselines": [item.comparison_id for item in baselines], "ablations": [item.ablation_id for item in ablations], "costs": [item.run_id for item in costs]}, sort_keys=True).encode("utf-8")).hexdigest()[:20]
-    return EvaluationReport(report_id=f"report:{fingerprint}", system_name=system_name, benchmark_results=benchmarks, human_evaluations=humans, baseline_comparisons=baselines, ablations=ablations, costs=costs)
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            {
+                "system": system_name,
+                "benchmarks": [item.run_id for item in benchmarks],
+                "humans": [item.evaluation_id for item in humans],
+                "baselines": [item.comparison_id for item in baselines],
+                "ablations": [item.ablation_id for item in ablations],
+                "costs": [item.run_id for item in costs],
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()[:20]
+    return EvaluationReport(
+        report_id=f"report:{fingerprint}",
+        system_name=system_name,
+        benchmark_results=benchmarks,
+        human_evaluations=humans,
+        baseline_comparisons=baselines,
+        ablations=ablations,
+        costs=costs,
+    )

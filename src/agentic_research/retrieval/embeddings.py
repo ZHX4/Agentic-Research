@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import hashlib
 import math
-from typing import Sequence
+from abc import ABC, abstractmethod
+from collections.abc import Sequence
 
 
 class EmbeddingProvider(ABC):
@@ -73,7 +73,7 @@ class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
 def cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
     if len(left) != len(right) or not left:
         raise ValueError("Vectors must be non-empty and have equal dimensions")
-    numerator = sum(a * b for a, b in zip(left, right))
+    numerator = sum(a * b for a, b in zip(left, right, strict=False))
     left_norm = math.sqrt(sum(value * value for value in left))
     right_norm = math.sqrt(sum(value * value for value in right))
     if left_norm == 0 or right_norm == 0:

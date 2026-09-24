@@ -1,13 +1,15 @@
 """Phase 9 autonomous discovery control plane."""
+
 from __future__ import annotations
 
 import hashlib
 import importlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 
 import typer
 
@@ -43,7 +45,7 @@ def _canonical(payload: dict[str, Any]) -> str:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _checkpoint_hash(state: AutonomousRunState) -> str:
@@ -66,7 +68,9 @@ def build_autonomous_report(state: AutonomousRunState) -> AutonomousRunReport:
         "reviews": [item.model_dump(mode="json") for item in state.reviews],
         "provenance": state.provenance_refs,
     }
-    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()[:24]
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()[:24]
     warnings = list(state.warnings)
     if not state.provenance_refs:
         warnings.append("Run has no provenance references")
@@ -88,7 +92,15 @@ def build_autonomous_report(state: AutonomousRunState) -> AutonomousRunReport:
 class AutonomousController:
     """Resumable, bounded autonomous loop with atomic state/checkpoints."""
 
-    ORDER: tuple[StageName, ...] = ("gap", "verify", "hypothesis", "execute", "evaluate", "review", "report")
+    ORDER: tuple[StageName, ...] = (
+        "gap",
+        "verify",
+        "hypothesis",
+        "execute",
+        "evaluate",
+        "review",
+        "report",
+    )
     REVIEW_STAGE_TARGETS: tuple[tuple[StageName, str], ...] = (
         ("gap", "gap"),
         ("verify", "verification"),
@@ -104,11 +116,15 @@ class AutonomousController:
         "evaluation": "evaluation_ids",
     }
 
-    def __init__(self, store: SQLiteRunStore, adapters: list[StageAdapter], *, reviewers: ReviewPanel) -> None:
+    def __init__(
+        self, store: SQLiteRunStore, adapters: list[StageAdapter], *, reviewers: ReviewPanel
+    ) -> None:
         self.store = store
         self.adapters = {adapter.name: adapter for adapter in adapters}
         self.reviewers = reviewers
-        missing = [stage for stage in self.ORDER if stage not in self.adapters and stage != "review"]
+        missing = [
+            stage for stage in self.ORDER if stage not in self.adapters and stage != "review"
+        ]
         if missing:
             raise ValueError(f"Missing stage adapters: {missing}")
 
@@ -151,12 +167,16 @@ class AutonomousController:
         ):
             target[:] = sorted(set(target))
 
-    def _stage_execution(self, state: AutonomousRunState, stage: StageName) -> StageExecution | None:
+    def _stage_execution(
+        self, state: AutonomousRunState, stage: StageName
+    ) -> StageExecution | None:
         return next(
             (
                 item
                 for item in reversed(state.stage_executions)
-                if item.iteration == state.iteration and item.stage == stage and item.status == "succeeded"
+                if item.iteration == state.iteration
+                and item.stage == stage
+                and item.status == "succeeded"
             ),
             None,
         )
@@ -196,8 +216,14 @@ class AutonomousController:
                 set([*review_artifact.get("provenance_refs", []), *state.provenance_refs])
             )
             canonical_target = _canonical({"ids": target_ids})
-            target_id = target_ids[0] if len(target_ids) == 1 else f"{stage}:{_sha256(canonical_target)[:16]}"
-            review_round = self.reviewers.review(state.iteration, target_kind, target_id, review_artifact)
+            target_id = (
+                target_ids[0]
+                if len(target_ids) == 1
+                else f"{stage}:{_sha256(canonical_target)[:16]}"
+            )
+            review_round = self.reviewers.review(
+                state.iteration, target_kind, target_id, review_artifact
+            )
             rounds.append(review_round)
             state.provenance_refs.extend(
                 ref for finding in review_round.findings for ref in finding.evidence_refs
@@ -229,14 +255,23 @@ class AutonomousController:
                         return state
                     revisions = [round_ for round_ in review_rounds if round_.consensus == "revise"]
                     if revisions:
-                        payload = {**payload, "reviews": [round_.model_dump(mode="json") for round_ in review_rounds]}
+                        payload = {
+                            **payload,
+                            "reviews": [round_.model_dump(mode="json") for round_ in review_rounds],
+                        }
                         progressed = True
                     continue
 
                 adapter = self.adapters[stage]
                 stage_id = f"stage:{state.iteration}:{stage}"
-                previous = next((item for item in state.stage_executions if item.stage_id == stage_id), None)
-                if previous is not None and previous.status == "succeeded" and previous.output_artifact:
+                previous = next(
+                    (item for item in state.stage_executions if item.stage_id == stage_id), None
+                )
+                if (
+                    previous is not None
+                    and previous.status == "succeeded"
+                    and previous.output_artifact
+                ):
                     payload = self._load_stage_artifact(previous)
                     self._harvest(state, payload)
                     continue
@@ -268,6 +303,7 @@ class AutonomousController:
                         execution.output_artifact = str(artifact_path)
                         execution.output_sha256 = _sha256(artifact_path.read_text(encoding="utf-8"))
                         execution.status = "succeeded"
+                        execution.error = None
                         payload = result
                         self._harvest(state, payload)
                         progressed = True
@@ -284,7 +320,11 @@ class AutonomousController:
                     state.current_stage = None
                     self._persist(state)
                     return state
-                if stage == "evaluate" and state.config.require_phase8_evaluation and not state.evaluation_ids:
+                if (
+                    stage == "evaluate"
+                    and state.config.require_phase8_evaluation
+                    and not state.evaluation_ids
+                ):
                     state.status = "failed"
                     state.stop_reason = "Required Phase 8 evaluation artifact/ID was not produced"
                     state.current_stage = None
@@ -299,9 +339,14 @@ class AutonomousController:
                 if review.iteration == state.iteration
                 for finding in review.findings
             }
-            if state.config.require_review_before_next_iteration and not expected_review_kinds.issubset(actual_review_kinds):
+            if (
+                state.config.require_review_before_next_iteration
+                and not expected_review_kinds.issubset(actual_review_kinds)
+            ):
                 state.status = "failed"
-                state.stop_reason = "Iteration completed without all required stage-specific reviews"
+                state.stop_reason = (
+                    "Iteration completed without all required stage-specific reviews"
+                )
                 state.current_stage = None
                 self._persist(state)
                 return state
@@ -342,11 +387,15 @@ class AutonomousController:
         self._persist(state)
         return state
 
-    def _write_artifact(self, run_id: str, iteration: int, stage: str, payload: dict[str, Any], attempt: int) -> Path:
+    def _write_artifact(
+        self, run_id: str, iteration: int, stage: str, payload: dict[str, Any], attempt: int
+    ) -> Path:
         root = self.store.path.parent / "phase9" / run_id
         root.mkdir(parents=True, exist_ok=True)
         path = root / f"iteration-{iteration:03d}-{stage}-attempt-{attempt}.json"
-        path.write_text(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False), encoding="utf-8")
+        path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False), encoding="utf-8"
+        )
         return path
 
     def _persist(self, state: AutonomousRunState) -> None:
@@ -365,11 +414,23 @@ class AutonomousController:
             created_at=_now(),
         )
         state.checkpoints.append(checkpoint)
-        state.checkpoints[-1] = checkpoint.model_copy(update={"state_sha256": _checkpoint_hash(state)})
+        state.checkpoints[-1] = checkpoint.model_copy(
+            update={"state_sha256": _checkpoint_hash(state)}
+        )
         self.store.save_checkpoint(state.checkpoints[-1], state, _sha256(state.model_dump_json()))
 
 
-def _identity(name: str) -> StageCallable:
+_SMOKE_STAGES: tuple[StageName, ...] = (
+    "gap",
+    "verify",
+    "hypothesis",
+    "execute",
+    "evaluate",
+    "report",
+)
+
+
+def _identity(name: StageName) -> StageCallable:
     def runner(payload: dict[str, Any]) -> dict[str, Any]:
         refs = list(payload.get("provenance_refs", []))
         refs.append(f"offline-smoke:{name}")
@@ -392,6 +453,7 @@ def _identity(name: str) -> StageCallable:
             result["evaluation_ids"] = [f"evaluation:{digest}"]
             result["cases_evaluated"] = 1
         return result
+
     return runner
 
 
@@ -399,7 +461,7 @@ def load_callable_adapters(manifest: Path) -> list[StageAdapter]:
     payload = json.loads(manifest.read_text(encoding="utf-8"))
     if not isinstance(payload, dict) or not isinstance(payload.get("stages"), dict):
         raise ValueError("Adapter manifest requires a stages object")
-    required = {"gap", "verify", "hypothesis", "execute", "evaluate", "report"}
+    required: set[StageName] = {"gap", "verify", "hypothesis", "execute", "evaluate", "report"}
     missing = sorted(required - set(payload["stages"]))
     if missing:
         raise ValueError(f"Adapter manifest missing stages: {missing}")
@@ -433,9 +495,11 @@ def run(
     offline_smoke_test: bool = typer.Option(False),
 ) -> None:
     if offline_smoke_test:
-        adapters = [StageAdapter(name, _identity(name)) for name in ("gap", "verify", "hypothesis", "execute", "evaluate", "report")]
+        adapters = [StageAdapter(name, _identity(name)) for name in _SMOKE_STAGES]
     elif adapters_file is None:
-        raise typer.BadParameter("--adapters-file is required unless --offline-smoke-test is explicitly enabled")
+        raise typer.BadParameter(
+            "--adapters-file is required unless --offline-smoke-test is explicitly enabled"
+        )
     else:
         adapters = load_callable_adapters(adapters_file)
     controller = _build_controller(state_db, adapters)
@@ -458,9 +522,11 @@ def resume(
     offline_smoke_test: bool = typer.Option(False),
 ) -> None:
     if offline_smoke_test:
-        adapters = [StageAdapter(name, _identity(name)) for name in ("gap", "verify", "hypothesis", "execute", "evaluate", "report")]
+        adapters = [StageAdapter(name, _identity(name)) for name in _SMOKE_STAGES]
     elif adapters_file is None:
-        raise typer.BadParameter("--adapters-file is required unless --offline-smoke-test is explicitly enabled")
+        raise typer.BadParameter(
+            "--adapters-file is required unless --offline-smoke-test is explicitly enabled"
+        )
     else:
         adapters = load_callable_adapters(adapters_file)
     controller = _build_controller(state_db, adapters)

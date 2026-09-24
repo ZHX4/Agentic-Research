@@ -1,15 +1,26 @@
 """Multi-seed execution and scientific result aggregation."""
+
 from __future__ import annotations
 
 import hashlib
 import json
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from statistics import mean
 
-from agentic_research.execution.sandbox import DockerSandboxExecutor, SandboxViolation, environment_fingerprint
-from agentic_research.schemas.phase7 import ExperimentResult, ExperimentSpec, MetricRecord, SeedRun
+from agentic_research.execution.sandbox import (
+    DockerSandboxExecutor,
+    SandboxViolation,
+    environment_fingerprint,
+)
+from agentic_research.schemas.phase7 import (
+    ExecutionStatus,
+    ExperimentResult,
+    ExperimentSpec,
+    MetricRecord,
+    SeedRun,
+)
 
 
 def _command_hash(command: list[str]) -> str:
@@ -30,7 +41,12 @@ def _aggregate_metrics(seed_runs: list[SeedRun]) -> list[MetricRecord]:
 def _parse_metrics(run: SeedRun, artifact_dir: Path) -> SeedRun:
     metrics_file = artifact_dir / "metrics.json"
     if not metrics_file.is_file():
-        return run.model_copy(update={"status": "failed", "error": "Required metrics.json was not produced by the experiment"})
+        return run.model_copy(
+            update={
+                "status": "failed",
+                "error": "Required metrics.json was not produced by the experiment",
+            }
+        )
     try:
         payload = json.loads(metrics_file.read_text(encoding="utf-8"))
         if not isinstance(payload, list) or not payload:
@@ -50,10 +66,19 @@ def _parse_metrics(run: SeedRun, artifact_dir: Path) -> SeedRun:
 
 
 def _rejected_runs(spec: ExperimentSpec, message: str) -> list[SeedRun]:
-    return [SeedRun(seed=seed, status="rejected", duration_seconds=0.0, error=message) for seed in spec.seeds]
+    return [
+        SeedRun(seed=seed, status="rejected", duration_seconds=0.0, error=message)
+        for seed in spec.seeds
+    ]
 
 
-def run_experiment(spec: ExperimentSpec, *, code_dir: Path, output_dir: Path, executor: DockerSandboxExecutor | None = None) -> ExperimentResult:
+def run_experiment(
+    spec: ExperimentSpec,
+    *,
+    code_dir: Path,
+    output_dir: Path,
+    executor: DockerSandboxExecutor | None = None,
+) -> ExperimentResult:
     runner = executor or DockerSandboxExecutor()
     try:
         seed_runs = runner.execute(spec, code_dir=code_dir, output_dir=output_dir)
@@ -62,7 +87,13 @@ def run_experiment(spec: ExperimentSpec, *, code_dir: Path, output_dir: Path, ex
         seed_runs = _rejected_runs(spec, str(exc))
         image_digest = hashlib.sha256(spec.sandbox.image.encode("utf-8")).hexdigest()
     parsed = [_parse_metrics(run, output_dir / f"seed-{run.seed}") for run in seed_runs]
-    status = "succeeded" if parsed and all(run.status == "succeeded" for run in parsed) and len(parsed) == len(spec.seeds) else "failed"
+    status: ExecutionStatus = (
+        "succeeded"
+        if parsed
+        and all(run.status == "succeeded" for run in parsed)
+        and len(parsed) == len(spec.seeds)
+        else "failed"
+    )
     if any(run.status == "timeout" for run in parsed):
         status = "timeout"
     if any(run.status == "rejected" for run in parsed):
@@ -71,7 +102,8 @@ def run_experiment(spec: ExperimentSpec, *, code_dir: Path, output_dir: Path, ex
     environment_sha = environment_fingerprint(spec, image_digest)
     command_sha = _command_hash(spec.command)
     return ExperimentResult(
-        result_id="result:" + hashlib.sha256(f"{spec.experiment_id}|{environment_sha}".encode()).hexdigest()[:20],
+        result_id="result:"
+        + hashlib.sha256(f"{spec.experiment_id}|{environment_sha}".encode()).hexdigest()[:20],
         experiment_id=spec.experiment_id,
         hypothesis_id=spec.hypothesis_id,
         status=status,
@@ -82,25 +114,47 @@ def run_experiment(spec: ExperimentSpec, *, code_dir: Path, output_dir: Path, ex
         reproducible=(status == "succeeded" and _is_reproducible(parsed)),
         environment_sha256=environment_sha,
         command_sha256=command_sha,
-        created_at=datetime.now(timezone.utc).isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
     )
 
 
-def evaluate_falsification(spec: ExperimentSpec, runs: list[SeedRun]) -> tuple[bool | None, str | None]:
+def evaluate_falsification(
+    spec: ExperimentSpec, runs: list[SeedRun]
+) -> tuple[bool | None, str | None]:
     if not runs or any(run.status != "succeeded" for run in runs):
         return None, "Falsification cannot be decided because not all seed runs succeeded."
     primary = spec.falsification.primary_metric
-    values = [m.value for run in runs for m in run.metrics if m.name == primary and m.split == "test"]
+    values = [
+        m.value for run in runs for m in run.metrics if m.name == primary and m.split == "test"
+    ]
     if len(values) != len(runs):
-        return None, f"Primary metric {primary!r} must be emitted exactly once per successful seed on the test split."
+        return (
+            None,
+            (
+                f"Primary metric {primary!r} must be emitted exactly "
+                f"once per successful seed on the test split."
+            ),
+        )
     threshold = spec.falsification.minimum_effect_size
     if threshold is None:
-        return None, "No operational minimum_effect_size was specified; remaining rejection criteria require domain-specific review."
+        return (
+            None,
+            (
+                "No operational minimum_effect_size was specified; remaining "
+                "rejection criteria require domain-specific review."
+            ),
+        )
     if spec.falsification.metric_direction == "higher" and min(values) < threshold:
         return True, "At least one seed remained below the prespecified minimum effect size."
     if spec.falsification.metric_direction == "lower" and max(values) > threshold:
         return True, "At least one seed remained above the prespecified maximum acceptable value."
-    return False, "The configured metric threshold was not crossed for any seed. This is not evidence that the hypothesis is true."
+    return (
+        False,
+        (
+            "The configured metric threshold was not crossed for any seed. "
+            "This is not evidence that the hypothesis is true."
+        ),
+    )
 
 
 def _is_reproducible(runs: list[SeedRun]) -> bool:

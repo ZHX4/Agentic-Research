@@ -6,9 +6,10 @@ import hashlib
 import json
 import re
 from collections import OrderedDict
+from collections.abc import Iterable
 from dataclasses import dataclass
 from sqlite3 import Row
-from typing import Iterable
+from typing import Literal
 
 from agentic_research.intelligence.pipeline import extract_paper_intelligence
 from agentic_research.literature.fulltext import FullTextAcquirer, parse_full_text
@@ -28,7 +29,6 @@ from agentic_research.schemas.phase5 import (
 )
 from agentic_research.world_model.store import ScientificWorldModel
 
-
 _ALIAS_GROUPS = {
     "rag": "retrieval augmented generation",
     "retrieval augmented generation": "rag",
@@ -41,9 +41,41 @@ _ALIAS_GROUPS = {
 }
 
 _STOPWORDS = {
-    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in", "is", "it",
-    "of", "on", "or", "that", "the", "their", "this", "to", "with", "we", "our", "using",
-    "used", "use", "show", "shows", "result", "results", "method", "approach", "model", "paper",
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "in",
+    "is",
+    "it",
+    "of",
+    "on",
+    "or",
+    "that",
+    "the",
+    "their",
+    "this",
+    "to",
+    "with",
+    "we",
+    "our",
+    "using",
+    "used",
+    "use",
+    "show",
+    "shows",
+    "result",
+    "results",
+    "method",
+    "approach",
+    "model",
+    "paper",
 }
 
 _SEVERITY_ORDER = {"low": 0, "medium": 1, "high": 2}
@@ -63,6 +95,19 @@ def _normalize(text: str) -> str:
     return " ".join(token for token in tokens if token not in _STOPWORDS and len(token) > 1)
 
 
+def _entity_key(text: str) -> str:
+    """Strict entity identity: case/whitespace-insensitive, but preserves every token.
+
+    Unlike :func:`_normalize` (which is deliberately aggressive for fuzzy prose
+    similarity), entity identity must not erase discriminators such as version
+    suffixes (``Retriever-A`` vs ``Retriever-B``) or generic science words that
+    form part of an entity name. Used for exact-combination matching and
+    field-overlap measurement.
+    """
+    tokens = re.findall(r"\w+", text.casefold(), flags=re.UNICODE)
+    return " ".join(tokens)
+
+
 def _token_set(text: str) -> set[str]:
     return set(_normalize(text).split())
 
@@ -80,12 +125,16 @@ def _stable_id(prefix: str, *parts: str) -> str:
 
 
 def _field_overlap(candidate_values: list[str], paper_values: list[str]) -> float:
-    candidate_tokens = {_normalize(value) for value in candidate_values if value}
-    paper_tokens = {_normalize(value) for value in paper_values if value}
+    candidate_tokens = {_entity_key(value) for value in candidate_values if value}
+    paper_tokens = {_entity_key(value) for value in paper_values if value}
     if not candidate_tokens:
         return 0.0
     return max(
-        (_jaccard(_token_set(value), _token_set(other)) for value in candidate_tokens for other in paper_tokens),
+        (
+            _jaccard(set(value.split()), set(other.split()))
+            for value in candidate_tokens
+            for other in paper_tokens
+        ),
         default=0.0,
     )
 
@@ -104,12 +153,12 @@ def _paper_text(paper: Paper) -> str:
 
 
 def _exact_combination(candidate: GapCandidate, paper: Paper) -> bool:
-    candidate_method = _normalize(candidate.method or "")
-    candidate_dataset = _normalize(candidate.dataset or "")
-    candidate_task = _normalize(candidate.task or "")
-    methods = {_normalize(value) for value in paper.methods}
-    datasets = {_normalize(value) for value in paper.datasets}
-    tasks = {_normalize(value) for value in paper.tasks}
+    candidate_method = _entity_key(candidate.method or "")
+    candidate_dataset = _entity_key(candidate.dataset or "")
+    candidate_task = _entity_key(candidate.task or "")
+    methods = {_entity_key(value) for value in paper.methods}
+    datasets = {_entity_key(value) for value in paper.datasets}
+    tasks = {_entity_key(value) for value in paper.tasks}
     return (
         bool(candidate_method)
         and candidate_method in methods
@@ -127,20 +176,26 @@ def _candidate_query_terms(candidate: GapCandidate) -> list[str]:
     ]
 
 
-def _fulltext_exact_combination(text: str, candidate: GapCandidate) -> tuple[bool, bool, bool, bool]:
+def _fulltext_exact_combination(
+    text: str, candidate: GapCandidate
+) -> tuple[bool, bool, bool, bool]:
     """Check whether all candidate entities occur in one local full-text context."""
     paragraphs = [chunk for chunk in re.split(r"\n\s*\n", text) if chunk.strip()]
     terms = {
-        "method": _normalize(candidate.method or ""),
-        "dataset": _normalize(candidate.dataset or ""),
-        "task": _normalize(candidate.task or ""),
+        "method": _entity_key(candidate.method or ""),
+        "dataset": _entity_key(candidate.dataset or ""),
+        "task": _entity_key(candidate.task or ""),
     }
-    found_method = bool(terms["method"]) and any(terms["method"] in _normalize(p) for p in paragraphs)
-    found_dataset = bool(terms["dataset"]) and any(terms["dataset"] in _normalize(p) for p in paragraphs)
-    found_task = not terms["task"] or any(terms["task"] in _normalize(p) for p in paragraphs)
+    found_method = bool(terms["method"]) and any(
+        terms["method"] in _entity_key(p) for p in paragraphs
+    )
+    found_dataset = bool(terms["dataset"]) and any(
+        terms["dataset"] in _entity_key(p) for p in paragraphs
+    )
+    found_task = not terms["task"] or any(terms["task"] in _entity_key(p) for p in paragraphs)
     same_context = False
     for paragraph in paragraphs:
-        normalized = _normalize(paragraph)
+        normalized = _entity_key(paragraph)
         if (
             (not terms["method"] or terms["method"] in normalized)
             and (not terms["dataset"] or terms["dataset"] in normalized)
@@ -182,7 +237,9 @@ def expand_queries(candidate: GapCandidate, max_queries: int) -> list[tuple[str,
                 if expanded != query:
                     probes[expanded] = f"Terminology expansion: {term} → {alias}"
 
-    return [(query, rationale) for query, rationale in probes.items() if query.strip()][:max_queries]
+    return [(query, rationale) for query, rationale in probes.items() if query.strip()][
+        :max_queries
+    ]
 
 
 class NoveltyVerifier:
@@ -198,7 +255,9 @@ class NoveltyVerifier:
         self.literature_service = literature_service
         self.fulltext_acquirer = fulltext_acquirer
 
-    def verify(self, candidate: GapCandidate, config: NoveltyVerificationConfig | None = None) -> GapVerificationResult:
+    def verify(
+        self, candidate: GapCandidate, config: NoveltyVerificationConfig | None = None
+    ) -> GapVerificationResult:
         cfg = config or NoveltyVerificationConfig()
         if candidate.status != GapStatus.CANDIDATE:
             raise ValueError("Phase 5 accepts only Phase 4 candidates")
@@ -232,7 +291,8 @@ class NoveltyVerifier:
                     if paper_ids:
                         placeholders = ",".join("?" for _ in paper_ids)
                         db_rows = self.world.connection.execute(
-                            f"SELECT paper_id,title,year,source,doi,arxiv_id,metadata_json FROM papers WHERE paper_id IN ({placeholders})",
+                            "SELECT paper_id,title,year,source,doi,arxiv_id,metadata_json "
+                            f"FROM papers WHERE paper_id IN ({placeholders})",
                             paper_ids,
                         ).fetchall()
                         for row in db_rows:
@@ -247,7 +307,9 @@ class NoveltyVerifier:
                             )
                         searched_sources.add("local-world-model")
                 except Exception as exc:
-                    limitations.append(f"Local search failed for probe {probe.probe_id}: {type(exc).__name__}")
+                    limitations.append(
+                        f"Local search failed for probe {probe.probe_id}: {type(exc).__name__}"
+                    )
 
             if cfg.include_external and self.literature_service is not None:
                 try:
@@ -260,10 +322,16 @@ class NoveltyVerifier:
                     )
                     probe_succeeded = True
                     for hit in hits:
-                        records.append(_SearchRecord(hit.paper.paper_id, hit.paper.title, hit.source, query, hit.paper))
+                        records.append(
+                            _SearchRecord(
+                                hit.paper.paper_id, hit.paper.title, hit.source, query, hit.paper
+                            )
+                        )
                         searched_sources.add(hit.source)
                 except Exception as exc:
-                    limitations.append(f"External search failed for probe {probe.probe_id}: {type(exc).__name__}")
+                    limitations.append(
+                        f"External search failed for probe {probe.probe_id}: {type(exc).__name__}"
+                    )
 
             if probe_succeeded:
                 successful_probes += 1
@@ -276,30 +344,42 @@ class NoveltyVerifier:
         counterevidence: list[Counterevidence] = []
         for record in unique.values():
             paper = record.paper
-            if cfg.temporal_cutoff is not None and (paper.year is None or paper.year > cfg.temporal_cutoff):
+            if cfg.temporal_cutoff is not None and (
+                paper.year is None or paper.year > cfg.temporal_cutoff
+            ):
                 continue
             method_overlap = _field_overlap([candidate.method or ""], paper.methods)
             dataset_overlap = _field_overlap([candidate.dataset or ""], paper.datasets)
             task_overlap = _field_overlap([candidate.task or ""], paper.tasks)
             title_overlap = _jaccard(_token_set(candidate.statement), _token_set(paper.title))
-            semantic_overlap = _jaccard(_token_set(candidate.statement), _token_set(_paper_text(paper)))
+            semantic_overlap = _jaccard(
+                _token_set(candidate.statement), _token_set(_paper_text(paper))
+            )
             exact = _exact_combination(candidate, paper)
             similarity = max(
-                semantic_overlap * 0.40 + method_overlap * 0.20 + dataset_overlap * 0.20 + task_overlap * 0.15 + title_overlap * 0.05,
+                semantic_overlap * 0.40
+                + method_overlap * 0.20
+                + dataset_overlap * 0.20
+                + task_overlap * 0.15
+                + title_overlap * 0.05,
                 max(method_overlap, dataset_overlap, task_overlap) * 0.65 + semantic_overlap * 0.35,
             )
+            challenge_type: Literal["direct", "near", "contextual"]
+            severity: Literal["low", "medium", "high"]
             if exact:
                 challenge_type, severity = "direct", "high"
             elif similarity >= cfg.near_match_similarity:
                 challenge_type, severity = "near", "medium"
-            elif similarity >= 0.45:
+            elif similarity >= 0.45 or title_overlap >= 0.5:
                 challenge_type, severity = "contextual", "low"
             else:
                 continue
             rationale = (
-                "Directly reproduces the candidate combination." if exact else
-                "Closely overlaps the candidate research configuration." if challenge_type == "near" else
-                "Provides contextual evidence relevant to the candidate gap."
+                "Directly reproduces the candidate combination."
+                if exact
+                else "Closely overlaps the candidate research configuration."
+                if challenge_type == "near"
+                else "Provides contextual evidence relevant to the candidate gap."
             )
             matches.append(
                 PriorWorkMatch(
@@ -334,7 +414,9 @@ class NoveltyVerifier:
         matches.sort(key=lambda item: (-item.similarity, item.paper.paper_id))
         counterevidence.sort(key=lambda item: (-_SEVERITY_ORDER[item.severity], item.paper_id))
 
-        deep_evidence, deep_exact_ids, deep_not_found_ids = self._deep_verify_matches(candidate, matches, cfg)
+        deep_evidence, deep_exact_ids, deep_not_found_ids = self._deep_verify_matches(
+            candidate, matches, cfg
+        )
         if deep_exact_ids:
             adjusted_matches = []
             for match in matches:
@@ -345,7 +427,10 @@ class NoveltyVerifier:
                                 "exact_combination": True,
                                 "challenge_type": "direct",
                                 "similarity": 1.0,
-                                "rationale": "Full-text evidence confirms the candidate method/dataset/task combination in the same local context.",
+                                "rationale": (
+                                    "Full-text evidence confirms the candidate "
+                                    "method/dataset/task combination in the same local context."
+                                ),
                             }
                         )
                     )
@@ -364,11 +449,14 @@ class NoveltyVerifier:
                             claim="Full-text evidence contains the candidate combination.",
                             severity="high",
                             supports_gap=False,
-                            rationale="Full-text verification directly contradicts the candidate gap.",
+                            rationale=(
+                                "Full-text verification directly contradicts the candidate gap."
+                            ),
                         )
                     )
             counterevidence.sort(key=lambda item: (-_SEVERITY_ORDER[item.severity], item.paper_id))
 
+        coverage: Literal["none", "limited", "moderate", "broad"]
         if successful_probes >= cfg.min_broad_searches and len(searched_sources) >= 2:
             coverage = "broad"
         elif successful_probes >= cfg.min_broad_searches or len(searched_sources) >= 2:
@@ -378,37 +466,44 @@ class NoveltyVerifier:
         else:
             coverage = "none"
 
-        direct = [match for match in matches if match.exact_combination and match.similarity >= cfg.min_direct_similarity]
+        direct = [match for match in matches if match.exact_combination]
         near = [match for match in matches if match.challenge_type == "near"]
         deep_successes = [item for item in deep_evidence if item.status in {"exact", "not_found"}]
         supported_coverage = coverage in {"broad", "moderate"}
+        verdict: Literal["supported", "weakened", "disproved", "inconclusive"]
         if direct:
             verdict, confidence, resulting_status, rationale = (
                 "disproved",
                 min(0.99, max(match.similarity for match in direct)),
                 GapStatus.DISPROVED,
-                "At least one sufficiently similar prior work directly matches the candidate combination.",
+                "At least one sufficiently similar prior work directly matches the candidate "
+                "combination.",
             )
         elif near:
             verdict, confidence, resulting_status, rationale = (
                 "weakened",
                 min(0.90, max(match.similarity for match in near)),
                 GapStatus.WEAKENED,
-                "No direct match was established, but close prior work materially weakens the candidate gap.",
+                "No direct match was established, but close prior work materially weakens the "
+                "candidate gap.",
             )
-        elif supported_coverage and (not cfg.require_deep_verification_for_supported or deep_successes):
+        elif supported_coverage and (
+            not cfg.require_deep_verification_for_supported or deep_successes
+        ):
             verdict, confidence, resulting_status, rationale = (
                 "supported",
                 0.55 if coverage == "moderate" else 0.65,
                 GapStatus.SURVIVED,
-                "The candidate survived the configured adversarial search budget and the available deep checks without a direct or near prior-work match.",
+                "The candidate survived the configured adversarial search budget and the "
+                "available deep checks without a direct or near prior-work match.",
             )
         else:
             verdict, confidence, resulting_status, rationale = (
                 "inconclusive",
                 0.25,
                 GapStatus.UNCERTAIN,
-                "Search or deep-evidence coverage was insufficient to support or reject the candidate gap.",
+                "Search or deep-evidence coverage was insufficient to support or reject the "
+                "candidate gap.",
             )
 
         if not cfg.allow_status_transition:
@@ -416,15 +511,27 @@ class NoveltyVerifier:
         if not records:
             limitations.append("No search results were retrieved; this is not evidence of novelty.")
         if "local-world-model" not in searched_sources and cfg.include_local:
-            limitations.append("The local indexed corpus was not searched or returned no usable results.")
-        if cfg.include_external and not any(source != "local-world-model" for source in searched_sources):
+            limitations.append(
+                "The local indexed corpus was not searched or returned no usable results."
+            )
+        if cfg.include_external and not any(
+            source != "local-world-model" for source in searched_sources
+        ):
             limitations.append("No external literature provider returned usable results.")
         if cfg.deep_verify and self.fulltext_acquirer is None:
-            limitations.append("Deep full-text verification was requested but no full-text acquirer was configured.")
+            limitations.append(
+                "Deep full-text verification was requested but no full-text acquirer was "
+                "configured."
+            )
         if cfg.require_deep_verification_for_supported and cfg.deep_verify and not deep_successes:
-            limitations.append("A supported novelty verdict requires at least one successful deep evidence check.")
+            limitations.append(
+                "A supported novelty verdict requires at least one successful deep evidence check."
+            )
         if coverage == "broad":
-            limitations.append("Broad means broad within the configured providers and query budget, not exhaustive global coverage.")
+            limitations.append(
+                "Broad means broad within the configured providers and query budget, not "
+                "exhaustive global coverage."
+            )
 
         verified_candidate = candidate.model_copy(
             update={
@@ -435,7 +542,11 @@ class NoveltyVerifier:
             }
         )
         return GapVerificationResult(
-            verification_id=_stable_id("verification", candidate.gap_id, json.dumps(cfg.model_dump(mode="json"), sort_keys=True)),
+            verification_id=_stable_id(
+                "verification",
+                candidate.gap_id,
+                json.dumps(cfg.model_dump(mode="json"), sort_keys=True),
+            ),
             gap_id=candidate.gap_id,
             original_status=candidate.status,
             resulting_status=resulting_status,
@@ -469,7 +580,8 @@ class NoveltyVerifier:
         eligible = [
             match
             for match in matches
-            if match.similarity >= config.deep_verification_similarity_floor
+            if max(match.similarity, match.title_overlap)
+            >= config.deep_verification_similarity_floor
             and match.source != "local-world-model"
         ][: config.max_deep_verifications]
         for match in eligible:
@@ -490,24 +602,41 @@ class NoveltyVerifier:
                     )
                     continue
                 if manifest.media_type == "application/pdf":
-                    enriched, _ = extract_paper_intelligence(match.paper, __import__("pathlib").Path(manifest.local_path))
-                    method_found = _normalize(candidate.method or "") in {_normalize(value) for value in enriched.methods}
-                    dataset_found = _normalize(candidate.dataset or "") in {_normalize(value) for value in enriched.datasets}
-                    task_found = not candidate.task or _normalize(candidate.task) in {_normalize(value) for value in enriched.tasks}
+                    enriched, _ = extract_paper_intelligence(
+                        match.paper, __import__("pathlib").Path(manifest.local_path)
+                    )
+                    method_found = _entity_key(candidate.method or "") in {
+                        _entity_key(value) for value in enriched.methods
+                    }
+                    dataset_found = _entity_key(candidate.dataset or "") in {
+                        _entity_key(value) for value in enriched.datasets
+                    }
+                    task_found = not candidate.task or _entity_key(candidate.task) in {
+                        _entity_key(value) for value in enriched.tasks
+                    }
                     parsed_text = ""
                     same_context = method_found and dataset_found and task_found
                 else:
                     parsed = parse_full_text(manifest)
                     parsed_text = parsed.text
-                    method_found, dataset_found, task_found, same_context = _fulltext_exact_combination(parsed_text, candidate)
+                    method_found, dataset_found, task_found, same_context = (
+                        _fulltext_exact_combination(parsed_text, candidate)
+                    )
+                status: Literal["exact", "not_found", "unavailable", "failed"]
                 if same_context:
                     exact_ids.add(match.paper.paper_id)
                     status = "exact"
-                    rationale = "Full-text verification found all candidate entities in the same scientific context."
+                    rationale = (
+                        "Full-text verification found all candidate entities in the same "
+                        "scientific context."
+                    )
                 else:
                     not_found_ids.add(match.paper.paper_id)
                     status = "not_found"
-                    rationale = "Full-text was available, but the candidate combination was not jointly supported by the extracted structure/text."
+                    rationale = (
+                        "Full-text was available, but the candidate combination was not jointly "
+                        "supported by the extracted structure/text."
+                    )
                 evidence.append(
                     DeepEvidenceCheck(
                         check_id=check_id,
@@ -539,19 +668,43 @@ class NoveltyVerifier:
                 )
         return evidence, exact_ids, not_found_ids
 
-    @staticmethod
-    def _paper_from_row(row: Row) -> Paper:
+    def _paper_from_row(self, row: Row) -> Paper:
         metadata = json.loads(row["metadata_json"]) if row["metadata_json"] else {}
+        methods: list[str] = []
+        datasets: list[str] = []
+        tasks: list[str] = []
+        if self.world is not None:
+            edge_rows = self.world.connection.execute(
+                """
+                SELECT e.edge_type, n.label
+                FROM edges e JOIN nodes n ON n.node_id = e.target_id
+                WHERE e.source_id = ? AND e.edge_type IN ('has_method', 'has_dataset', 'has_task')
+                ORDER BY e.edge_type, n.node_id
+                """,
+                (f"paper:{row['paper_id']}",),
+            ).fetchall()
+            for edge_row in edge_rows:
+                if edge_row["edge_type"] == "has_method":
+                    methods.append(edge_row["label"])
+                elif edge_row["edge_type"] == "has_dataset":
+                    datasets.append(edge_row["label"])
+                elif edge_row["edge_type"] == "has_task":
+                    tasks.append(edge_row["label"])
         return Paper(
             paper_id=row["paper_id"],
             title=row["title"],
             year=row["year"],
             doi=row["doi"],
             arxiv_id=row["arxiv_id"],
+            methods=methods,
+            datasets=datasets,
+            tasks=tasks,
             metadata=metadata,
         )
 
-    def verify_batch(self, candidates: list[GapCandidate], config: NoveltyVerificationConfig | None = None) -> NoveltyVerificationReport:
+    def verify_batch(
+        self, candidates: list[GapCandidate], config: NoveltyVerificationConfig | None = None
+    ) -> NoveltyVerificationReport:
         cfg = config or NoveltyVerificationConfig()
         results = [self.verify(candidate, cfg) for candidate in candidates]
         run_id = _stable_id(

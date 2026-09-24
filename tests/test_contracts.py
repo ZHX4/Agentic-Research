@@ -21,9 +21,7 @@ def test_agent_result_is_structured() -> None:
     assert result.outputs == {}
 
     with pytest.raises(ValidationError):
-        AgentResult.model_validate(
-            {"agent": "gap-hunter", "status": "ok", "unexpected": True}
-        )
+        AgentResult.model_validate({"agent": "gap-hunter", "status": "ok", "unexpected": True})
 
 
 def test_search_query_defaults_and_bounds() -> None:

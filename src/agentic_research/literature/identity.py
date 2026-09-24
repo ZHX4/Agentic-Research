@@ -6,7 +6,7 @@ import hashlib
 import re
 import unicodedata
 from collections import defaultdict
-from typing import Iterable
+from collections.abc import Iterable
 
 from agentic_research.schemas import Paper
 

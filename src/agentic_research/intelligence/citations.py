@@ -51,7 +51,9 @@ def extract_references(paper: Paper, references_text: str) -> list[CitationRefer
         doi_match = _DOI.search(raw_text)
         arxiv_match = _ARXIV.search(raw_text)
         year_match = _YEAR.search(raw_text)
-        ref_id = hashlib.sha1(f"{paper.paper_id}|ref|{order or index}|{raw_text}".encode("utf-8")).hexdigest()[:16]
+        ref_id = hashlib.sha1(
+            f"{paper.paper_id}|ref|{order or index}|{raw_text}".encode()
+        ).hexdigest()[:16]
         author = _guess_first_author(raw_text)
         references.append(
             CitationReference(
@@ -89,11 +91,11 @@ def extract_citation_edges(
     edges: dict[str, CitationEdge] = {}
     for chunk in chunks:
         for number, marker in _citation_numbers(chunk.text):
-            ref = by_number.get(number)
-            if ref is None:
+            numbered_ref = by_number.get(number)
+            if numbered_ref is None:
                 continue
-            edges[_edge_key(paper.paper_id, ref.reference_id, chunk.chunk_id)] = _build_edge(
-                paper, ref, chunk.chunk_id, marker, confidence=0.95
+            edges[_edge_key(paper.paper_id, numbered_ref.reference_id, chunk.chunk_id)] = (
+                _build_edge(paper, numbered_ref, chunk.chunk_id, marker, confidence=0.95)
             )
 
         for author, year, marker in _author_year_citations(chunk.text):
@@ -126,7 +128,7 @@ def _build_edge(
 
 
 def _edge_key(citing_id: str, reference_id: str, chunk_id: str) -> str:
-    return hashlib.sha1(f"{citing_id}|{reference_id}|{chunk_id}".encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha1(f"{citing_id}|{reference_id}|{chunk_id}".encode()).hexdigest()[:16]
 
 
 def _citation_numbers(text: str) -> list[tuple[int, str]]:
@@ -165,7 +167,9 @@ def _guess_title(raw: str) -> str | None:
     return max(parts[1:-1] or parts[1:], key=len)[:300]
 
 
-def _reference_confidence(raw: str, has_identifier: bool, has_year: bool, has_author: bool) -> float:
+def _reference_confidence(
+    raw: str, has_identifier: bool, has_year: bool, has_author: bool
+) -> float:
     score = 0.40
     if has_identifier:
         score += 0.28

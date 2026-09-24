@@ -1,4 +1,5 @@
 """Phase 7 scientific execution contracts."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,8 +7,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-
-ExecutionStatus = Literal["planned", "running", "succeeded", "failed", "timeout", "rejected", "cancelled"]
+ExecutionStatus = Literal[
+    "planned", "running", "succeeded", "failed", "timeout", "rejected", "cancelled"
+]
 MetricDirection = Literal["higher", "lower"]
 
 
@@ -56,7 +58,7 @@ class SandboxPolicy(BaseModel):
     allowed_env: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_policy(self) -> "SandboxPolicy":
+    def validate_policy(self) -> SandboxPolicy:
         if self.network_enabled and self.allow_gpu:
             raise ValueError("network_enabled and allow_gpu cannot both be true by default")
         if not self.read_only_root and self.workdir == "/workspace":
@@ -82,7 +84,7 @@ class ExperimentSpec(BaseModel):
     parameters: dict[str, str | int | float | bool] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def validate_experiment(self) -> "ExperimentSpec":
+    def validate_experiment(self) -> ExperimentSpec:
         if len(set(self.seeds)) != len(self.seeds):
             raise ValueError("Experiment seeds must be unique")
         if any(seed < 0 for seed in self.seeds):
@@ -146,7 +148,7 @@ class ExperimentResult(BaseModel):
     created_at: str = Field(min_length=1)
 
     @model_validator(mode="after")
-    def validate_result(self) -> "ExperimentResult":
+    def validate_result(self) -> ExperimentResult:
         if any(run.seed < 0 for run in self.seed_runs):
             raise ValueError("Seed runs must use non-negative seeds")
         statuses = {run.status for run in self.seed_runs}
@@ -179,7 +181,7 @@ class ExperimentSearchTree(BaseModel):
     terminal_node_ids: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_tree(self) -> "ExperimentSearchTree":
+    def validate_tree(self) -> ExperimentSearchTree:
         ids = {node.node_id for node in self.nodes}
         if len(ids) != len(self.nodes):
             raise ValueError("Experiment tree node IDs must be unique")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -12,7 +13,12 @@ from agentic_research.publication.engine import (
     build_publication_bundle,
     build_reproducibility_package,
 )
-from agentic_research.schemas.phase10 import Manuscript, ModelProviderDisclosure, PublicationSection
+from agentic_research.schemas.phase10 import (
+    Manuscript,
+    ModelProviderDisclosure,
+    PublicationSection,
+    ReproducibilityPackage,
+)
 
 
 def test_artifact_hash_is_computed_from_file(tmp_path: Path) -> None:
@@ -27,7 +33,9 @@ def test_unknown_license_requires_review(tmp_path: Path) -> None:
     path = tmp_path / "artifact.txt"
     path.write_text("hello", encoding="utf-8")
     entry = build_artifact_entry(path, "result", "r1")
-    package = build_reproducibility_package("abcdef123456789", [entry], "pyproject.toml", ["pytest -q"])
+    package = build_reproducibility_package(
+        "abcdef123456789", [entry], "pyproject.toml", ["pytest -q"]
+    )
     audit = audit_licenses(package.artifacts)
     assert audit[0].status == "review"
 
@@ -49,11 +57,21 @@ def test_case_study_requires_pipeline_fields() -> None:
         build_case_study({"case_id": "c1"})
 
 
-def _ready_inputs(tmp_path: Path):
+def _ready_inputs(
+    tmp_path: Path,
+) -> tuple[
+    dict[str, Any],
+    dict[str, Any],
+    dict[str, Any],
+    list[ModelProviderDisclosure],
+    ReproducibilityPackage,
+]:
     path = tmp_path / "artifact.txt"
     path.write_text("hello", encoding="utf-8")
     entry = build_artifact_entry(path, "result", "r1", "MIT")
-    package = build_reproducibility_package("abcdef123456789", [entry], "pyproject.toml", ["pytest -q"])
+    package = build_reproducibility_package(
+        "abcdef123456789", [entry], "pyproject.toml", ["pytest -q"]
+    )
     disclosure = [
         ModelProviderDisclosure(
             provider="test",
@@ -64,9 +82,12 @@ def _ready_inputs(tmp_path: Path):
             usage_notes="Synthetic test disclosure.",
         )
     ]
-    architecture = {"evidence_refs": ["arch:1"]}
-    evaluation = {"provenance_refs": ["bench:1"], "benchmarks": [{"benchmark_id": "b1", "metric": 0.9}]}
-    case = {
+    architecture: dict[str, Any] = {"evidence_refs": ["arch:1"]}
+    evaluation: dict[str, Any] = {
+        "provenance_refs": ["bench:1"],
+        "benchmarks": [{"benchmark_id": "b1", "metric": 0.9}],
+    }
+    case: dict[str, Any] = {
         "case_id": "c1",
         "hypothesis": {"id": "h1"},
         "verification": {"id": "v1"},
@@ -77,17 +98,27 @@ def _ready_inputs(tmp_path: Path):
     return architecture, evaluation, case, disclosure, package
 
 
-def test_ready_bundle_is_emittable_with_evidence_disclosure_and_passed_licenses(tmp_path: Path) -> None:
+def test_ready_bundle_is_emittable_with_evidence_disclosure_and_passed_licenses(
+    tmp_path: Path,
+) -> None:
     architecture, evaluation, case, disclosure, package = _ready_inputs(tmp_path)
-    bundle = build_publication_bundle("abcdef123456789", architecture, evaluation, case, disclosure, package)
+    bundle = build_publication_bundle(
+        "abcdef123456789", architecture, evaluation, case, disclosure, package
+    )
     assert bundle.status == "ready"
-    assert {item.kind for item in bundle.manuscripts} == {"system_paper", "benchmark_paper", "case_study"}
+    assert {item.kind for item in bundle.manuscripts} == {
+        "system_paper",
+        "benchmark_paper",
+        "case_study",
+    }
     assert all(item.status == "pass" for item in bundle.license_audit)
 
 
 def test_bundle_is_blocked_when_disclosure_is_missing(tmp_path: Path) -> None:
     architecture, evaluation, case, _disclosure, package = _ready_inputs(tmp_path)
-    bundle = build_publication_bundle("abcdef123456789", architecture, evaluation, case, [], package)
+    bundle = build_publication_bundle(
+        "abcdef123456789", architecture, evaluation, case, [], package
+    )
     assert bundle.status == "blocked"
     assert any("disclosure" in warning.lower() for warning in bundle.warnings)
 
@@ -102,11 +133,14 @@ def test_bundle_rejects_stale_artifact_manifest(tmp_path: Path) -> None:
     artifact_path = Path(package.artifacts[0].path)
     artifact_path.write_text("tampered", encoding="utf-8")
     with pytest.raises(ValueError, match="Artifact hash mismatch"):
-        build_publication_bundle("abcdef123456789", architecture, evaluation, case, disclosure, package)
+        build_publication_bundle(
+            "abcdef123456789", architecture, evaluation, case, disclosure, package
+        )
 
 
 def test_license_audit_coverage_matches_exact_artifact_set(tmp_path: Path) -> None:
     from agentic_research.publication.engine import validate_license_audit_coverage
+
     path = tmp_path / "artifact.txt"
     path.write_text("hello", encoding="utf-8")
     entry = build_artifact_entry(path, "result", "r1", "MIT")

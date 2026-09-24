@@ -9,8 +9,9 @@ import typer
 from agentic_research.schemas.phase9 import AutonomousRunConfig
 
 from .controller import (
-    StageAdapter,
     AutonomousController,
+    StageAdapter,
+    StageName,
     _build_controller,
     _identity,
     _sha256,
@@ -19,7 +20,7 @@ from .controller import (
 )
 
 app = typer.Typer(help="Phase 9 autonomous research CLI.")
-STAGES = ("gap", "verify", "hypothesis", "execute", "evaluate", "report")
+STAGES: tuple[StageName, ...] = ("gap", "verify", "hypothesis", "execute", "evaluate", "report")
 
 
 def _adapters(adapters_file: Path | None, offline_smoke_test: bool) -> list[StageAdapter]:
@@ -37,9 +38,7 @@ def _resume_payload(controller: AutonomousController, run_id: str) -> dict[str, 
     successful = [
         item
         for item in state.stage_executions
-        if item.iteration == state.iteration
-        and item.status == "succeeded"
-        and item.output_artifact
+        if item.iteration == state.iteration and item.status == "succeeded" and item.output_artifact
     ]
     if not successful:
         return {}

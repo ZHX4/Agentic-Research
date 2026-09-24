@@ -1,4 +1,5 @@
 """Phase 10 publication and release contracts."""
+
 from __future__ import annotations
 
 from typing import Literal
@@ -64,7 +65,7 @@ class Manuscript(BaseModel):
     status: PublicationStatus
 
     @model_validator(mode="after")
-    def validate_ready(self) -> "Manuscript":
+    def validate_ready(self) -> Manuscript:
         if self.status == "ready" and not self.evidence_refs:
             raise ValueError("Ready manuscripts require evidence_refs")
         if self.status == "ready" and any(not section.evidence_refs for section in self.sections):
@@ -84,7 +85,7 @@ class ReproducibilityPackage(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_unique(self) -> "ReproducibilityPackage":
+    def validate_unique(self) -> ReproducibilityPackage:
         ids = [item.artifact_id for item in self.artifacts]
         if len(ids) != len(set(ids)):
             raise ValueError("Artifact IDs must be unique")
@@ -103,7 +104,7 @@ class PublicationBundle(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_bundle(self) -> "PublicationBundle":
+    def validate_bundle(self) -> PublicationBundle:
         if self.status == "ready":
             required = {"system_paper", "benchmark_paper", "case_study"}
             present = {item.kind for item in self.manuscripts if item.status == "ready"}

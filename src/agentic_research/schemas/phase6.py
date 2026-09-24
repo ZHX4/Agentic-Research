@@ -1,4 +1,5 @@
 """Phase 6 hypothesis-reasoning contracts."""
+
 from __future__ import annotations
 
 from typing import Literal
@@ -7,7 +8,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .gap import GapStatus
 
-HypothesisOrigin = Literal["gap_direct", "gap_composed", "gap_conservative", "gap_high_risk", "evolved"]
+HypothesisOrigin = Literal[
+    "gap_direct", "gap_composed", "gap_conservative", "gap_high_risk", "evolved"
+]
 
 
 class Hypothesis(BaseModel):
@@ -33,7 +36,15 @@ class Hypothesis(BaseModel):
 
     @property
     def composite_score(self) -> float:
-        return 0.22 * self.novelty_score + 0.16 * self.evidence_score + 0.17 * self.significance_score + 0.17 * self.feasibility_score + 0.10 * self.diversity_score + 0.10 * self.robustness_score + 0.08 * self.reflection_score
+        return (
+            0.22 * self.novelty_score
+            + 0.16 * self.evidence_score
+            + 0.17 * self.significance_score
+            + 0.17 * self.feasibility_score
+            + 0.10 * self.diversity_score
+            + 0.10 * self.robustness_score
+            + 0.08 * self.reflection_score
+        )
 
 
 class HypothesisReflection(BaseModel):
@@ -71,7 +82,7 @@ class HypothesisConfig(BaseModel):
     clustering_threshold: float = Field(default=0.70, ge=0, le=1)
 
     @model_validator(mode="after")
-    def validate_limits(self) -> "HypothesisConfig":
+    def validate_limits(self) -> HypothesisConfig:
         if self.evolve_top_k > self.keep_diverse_limit:
             raise ValueError("evolve_top_k cannot exceed keep_diverse_limit")
         if self.min_gap_status in {GapStatus.CANDIDATE, GapStatus.DISPROVED}:
@@ -98,7 +109,7 @@ class HypothesisRun(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_integrity(self) -> "HypothesisRun":
+    def validate_integrity(self) -> HypothesisRun:
         ids = [item.hypothesis.hypothesis_id for item in self.candidates]
         if len(ids) != len(set(ids)):
             raise ValueError("Duplicate hypothesis IDs are not allowed")

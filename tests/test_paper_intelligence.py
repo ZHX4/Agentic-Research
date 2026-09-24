@@ -4,13 +4,23 @@ import fitz
 import pytest
 from pydantic import ValidationError
 
-from agentic_research.intelligence.calibration import CalibrationExample, IsotonicCalibrator, IsotonicModel, calibration_report
-from agentic_research.intelligence.citations import extract_citation_edges, extract_references
+from agentic_research.intelligence.calibration import (
+    CalibrationExample,
+    IsotonicCalibrator,
+    IsotonicModel,
+    calibration_report,
+)
 from agentic_research.intelligence.chunking import chunk_blocks
+from agentic_research.intelligence.citations import extract_citation_edges, extract_references
 from agentic_research.intelligence.layout import TextBlock, extract_figures, extract_tables
 from agentic_research.intelligence.sections import assign_section, detect_sections
 from agentic_research.schemas import Evidence, Paper
-from agentic_research.schemas.paper_intelligence import BoundingBox, ClaimEvidenceLink, StructuredExtraction, TextChunk
+from agentic_research.schemas.paper_intelligence import (
+    BoundingBox,
+    ClaimEvidenceLink,
+    StructuredExtraction,
+    TextChunk,
+)
 
 
 def _block(order: int, text: str, page: int = 1, size: float = 12, bold: bool = False) -> TextBlock:
@@ -26,7 +36,12 @@ def _block(order: int, text: str, page: int = 1, size: float = 12, bold: bool = 
 
 
 def test_same_page_sections_use_document_order() -> None:
-    blocks = [_block(0, "Introduction", size=16, bold=True), _block(1, "First paragraph."), _block(2, "Methods", size=16, bold=True), _block(3, "Second paragraph.")]
+    blocks = [
+        _block(0, "Introduction", size=16, bold=True),
+        _block(1, "First paragraph."),
+        _block(2, "Methods", size=16, bold=True),
+        _block(3, "Second paragraph."),
+    ]
     sections = detect_sections("p1", blocks)
     assert len(sections) == 2
     first = assign_section(blocks[1], sections)
@@ -36,7 +51,12 @@ def test_same_page_sections_use_document_order() -> None:
 
 
 def test_chunking_respects_section_boundaries() -> None:
-    blocks = [_block(0, "Introduction", size=16, bold=True), _block(1, "This is an introduction sentence. Another sentence."), _block(2, "Methods", size=16, bold=True), _block(3, "We propose a method and evaluate it.")]
+    blocks = [
+        _block(0, "Introduction", size=16, bold=True),
+        _block(1, "This is an introduction sentence. Another sentence."),
+        _block(2, "Methods", size=16, bold=True),
+        _block(3, "We propose a method and evaluate it."),
+    ]
     sections = detect_sections("p1", blocks)
     chunks = chunk_blocks("p1", blocks, sections, target_chars=200, max_chars=500)
     assert chunks
@@ -62,7 +82,9 @@ def test_author_year_citation_edges() -> None:
     refs_text = "[1] Smith, J. Retrieval Methods. 2024. doi:10.1234/SMITH"
     refs = extract_references(paper, refs_text)
     chunks = [
-        TextChunk(chunk_id="c1", paper_id="p1", text="Prior work (Smith, 2024) supports this result."),
+        TextChunk(
+            chunk_id="c1", paper_id="p1", text="Prior work (Smith, 2024) supports this result."
+        ),
         TextChunk(chunk_id="c2", paper_id="p1", text="Smith et al. 2024 introduced the method."),
     ]
     edges = extract_citation_edges(paper, chunks, refs)
@@ -71,7 +93,12 @@ def test_author_year_citation_edges() -> None:
 
 
 def test_confidence_calibrator_is_monotonic() -> None:
-    examples = [CalibrationExample(raw_confidence=0.1, correct=False), CalibrationExample(raw_confidence=0.2, correct=True), CalibrationExample(raw_confidence=0.8, correct=True), CalibrationExample(raw_confidence=0.9, correct=True)]
+    examples = [
+        CalibrationExample(raw_confidence=0.1, correct=False),
+        CalibrationExample(raw_confidence=0.2, correct=True),
+        CalibrationExample(raw_confidence=0.8, correct=True),
+        CalibrationExample(raw_confidence=0.9, correct=True),
+    ]
     calibrator = IsotonicCalibrator.fit(examples)
     values = [calibrator.transform(x / 10) for x in range(11)]
     assert values == sorted(values)
@@ -99,7 +126,10 @@ def test_invalid_isotonic_model_is_rejected() -> None:
 
 
 def test_calibration_report() -> None:
-    examples = [CalibrationExample(raw_confidence=0.1, correct=False), CalibrationExample(raw_confidence=0.9, correct=True)]
+    examples = [
+        CalibrationExample(raw_confidence=0.1, correct=False),
+        CalibrationExample(raw_confidence=0.9, correct=True),
+    ]
     report = calibration_report(examples, bins=2)
     assert report.sample_count == 2
     assert 0 <= report.expected_calibration_error <= 1
@@ -112,7 +142,15 @@ def test_structured_extraction_rejects_broken_evidence_link() -> None:
             extraction_id="e1",
             paper_id="p1",
             evidence=[Evidence(evidence_id="ev1", paper_id="p1", claim="claim", confidence=0.5)],
-            claim_links=[ClaimEvidenceLink(link_id="l1", claim_id="missing-claim", evidence_id="ev1", relation="supports", confidence=0.5)],
+            claim_links=[
+                ClaimEvidenceLink(
+                    link_id="l1",
+                    claim_id="missing-claim",
+                    evidence_id="ev1",
+                    relation="supports",
+                    confidence=0.5,
+                )
+            ],
             extractor_version="test",
         )
 
@@ -146,10 +184,9 @@ def test_figure_extraction(tmp_path: Path) -> None:
     document = fitz.open()
     page = document.new_page(width=400, height=300)
     page.insert_text((50, 50), "Figure 1. Example image")
-    png = bytes.fromhex(
-        "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de"
-        "0000000c4944415408d763f8cfc0000000030001cdeb5a3e0000000049454e44ae426082"
-    )
+    pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 10, 10))
+    pix.set_rect(pix.irect, (255, 0, 0))
+    png = pix.tobytes("png")
     page.insert_image(fitz.Rect(100, 80, 220, 180), stream=png)
     document.save(path)
     document.close()

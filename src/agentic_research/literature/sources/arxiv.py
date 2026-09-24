@@ -23,7 +23,7 @@ class ArxivAdapter(LiteratureRetriever):
         self,
         *,
         client: HttpClient | None = None,
-        user_agent: str = "Agentic-Research/0.2 (+https://github.com/ZHX4/Agentic-Research)",
+        user_agent: str = "Agentic-Research/1.2.0 (+https://github.com/ZHX4/Agentic-Research)",
         timeout_seconds: float = 30.0,
         min_interval_seconds: float = 3.0,
     ) -> None:
@@ -116,7 +116,9 @@ def _paper_from_entry(entry: ET.Element) -> Paper:
         abstract=" ".join(abstract.split()) if abstract else None,
         year=year,
         arxiv_id=arxiv_id,
-        url=abs_url,
+        # Pydantic coerces URL strings to HttpUrl; a malformed feed URL surfaces as
+        # ValidationError to the caller like any other invalid paper field.
+        url=abs_url,  # type: ignore[arg-type]
         authors=authors,
         metadata=metadata,
     )

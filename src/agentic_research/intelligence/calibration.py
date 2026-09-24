@@ -41,14 +41,16 @@ class IsotonicModel(BaseModel):
     values: list[float] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def validate_model(self) -> "IsotonicModel":
+    def validate_model(self) -> IsotonicModel:
         if len(self.thresholds) != len(self.values):
             raise ValueError("thresholds and values must have equal lengths")
         if any(not 0 <= item <= 1 for item in self.thresholds + self.values):
             raise ValueError("thresholds and values must be within [0, 1]")
-        if any(left >= right for left, right in zip(self.thresholds, self.thresholds[1:], strict=True)):
+        if any(
+            left >= right for left, right in zip(self.thresholds, self.thresholds[1:], strict=False)
+        ):
             raise ValueError("thresholds must be strictly increasing")
-        if any(left > right for left, right in zip(self.values, self.values[1:], strict=True)):
+        if any(left > right for left, right in zip(self.values, self.values[1:], strict=False)):
             raise ValueError("values must be non-decreasing")
         return self
 
@@ -61,7 +63,7 @@ class IsotonicCalibrator:
     values: list[float]
 
     @classmethod
-    def fit(cls, examples: list[CalibrationExample]) -> "IsotonicCalibrator":
+    def fit(cls, examples: list[CalibrationExample]) -> IsotonicCalibrator:
         if not examples:
             raise ValueError("At least one labeled calibration example is required")
 
@@ -101,7 +103,7 @@ class IsotonicCalibrator:
         )
 
     @classmethod
-    def from_model(cls, model: IsotonicModel) -> "IsotonicCalibrator":
+    def from_model(cls, model: IsotonicModel) -> IsotonicCalibrator:
         return cls(thresholds=list(model.thresholds), values=list(model.values))
 
     def to_model(self) -> IsotonicModel:
@@ -136,10 +138,13 @@ def calibration_report(examples: list[CalibrationExample], *, bins: int = 10) ->
     total = len(examples)
     ece = 0.0
     mce = 0.0
-    brier = sum(
-        (example.raw_confidence - (1.0 if example.correct else 0.0)) ** 2
-        for example in examples
-    ) / total
+    brier = (
+        sum(
+            (example.raw_confidence - (1.0 if example.correct else 0.0)) ** 2
+            for example in examples
+        )
+        / total
+    )
 
     for index, group in enumerate(grouped):
         lower = index / bins

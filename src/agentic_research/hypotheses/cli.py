@@ -1,4 +1,5 @@
 """CLI for Phase 6 hypothesis reasoning."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -16,7 +17,9 @@ app = typer.Typer(help="Agentic-Research Phase 6 hypothesis reasoning.")
 
 @app.command(name="reason")
 def reason(
-    input: Path = typer.Option(..., exists=True, readable=True, help="Phase 5 NoveltyVerificationReport JSON."),
+    input: Path = typer.Option(
+        ..., exists=True, readable=True, help="Phase 5 NoveltyVerificationReport JSON."
+    ),
     output: Path = typer.Option(..., help="Phase 6 HypothesisRun JSON."),
     hypotheses_per_gap: int = typer.Option(6, min=1, max=50),
     max_composed_pairs: int = typer.Option(25, min=0, max=200),
@@ -35,7 +38,9 @@ def reason(
     report = NoveltyVerificationReport.model_validate_json(input.read_text(encoding="utf-8"))
     minimum = GapStatus(min_gap_status)
     if minimum == GapStatus.UNCERTAIN and not allow_uncertain_gaps:
-        raise typer.BadParameter("--allow-uncertain-gaps is required when --min-gap-status=uncertain")
+        raise typer.BadParameter(
+            "--allow-uncertain-gaps is required when --min-gap-status=uncertain"
+        )
     cfg = HypothesisConfig(
         hypotheses_per_gap=hypotheses_per_gap,
         max_composed_pairs=max_composed_pairs,

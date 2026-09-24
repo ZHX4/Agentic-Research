@@ -19,6 +19,8 @@ class DevilsAdvocateAgent:
     def __init__(self, verifier: AdversarialNoveltyVerifier) -> None:
         self.verifier = verifier
 
-    def challenge(self, candidate: GapCandidate, config: NoveltyVerificationConfig | None = None) -> GapVerificationResult:
+    def challenge(
+        self, candidate: GapCandidate, config: NoveltyVerificationConfig | None = None
+    ) -> GapVerificationResult:
         """Attempt to defeat one Phase 4 candidate using the configured search budget."""
         return self.verifier.verify(candidate, config)

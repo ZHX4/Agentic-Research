@@ -20,9 +20,13 @@ app = typer.Typer(help="Agentic-Research Phase 5 adversarial novelty verifier.")
 
 @app.command(name="verify-gaps")
 def verify_gaps(
-    input: Path = typer.Option(..., exists=True, readable=True, help="Phase 4 GapDiscoveryResult JSON."),
+    input: Path = typer.Option(
+        ..., exists=True, readable=True, help="Phase 4 GapDiscoveryResult JSON."
+    ),
     output: Path = typer.Option(..., help="Phase 5 NoveltyVerificationReport JSON."),
-    database: Path | None = typer.Option(None, exists=True, readable=True, help="Optional Phase 3 world-model database."),
+    database: Path | None = typer.Option(
+        None, exists=True, readable=True, help="Optional Phase 3 world-model database."
+    ),
     temporal_cutoff: int | None = typer.Option(None, min=1900, max=2200),
     external_results_per_query: int = typer.Option(10, min=1, max=100),
     local_results_per_query: int = typer.Option(10, min=1, max=100),
@@ -30,14 +34,24 @@ def verify_gaps(
     min_direct_similarity: float = typer.Option(0.92, min=0, max=1),
     near_match_similarity: float = typer.Option(0.72, min=0, max=1),
     min_broad_searches: int = typer.Option(3, min=1, max=50),
-    deep_verify: bool = typer.Option(True, help="Perform bounded full-text verification of top prior works."),
+    deep_verify: bool = typer.Option(
+        True, help="Perform bounded full-text verification of top prior works."
+    ),
     max_deep_verifications: int = typer.Option(5, min=0, max=25),
-    require_deep_verification_for_supported: bool = typer.Option(True, help="Require at least one successful full-text check before a supported verdict."),
+    require_deep_verification_for_supported: bool = typer.Option(
+        True, help="Require at least one successful full-text check before a supported verdict."
+    ),
     deep_verification_similarity_floor: float = typer.Option(0.45, min=0, max=1),
-    fulltext_cache_dir: Path = typer.Option(Path("artifacts/phase5-fulltext"), help="Cache directory for bounded prior-work full text."),
-    no_external: bool = typer.Option(False, help="Disable configured external scholarly providers."),
+    fulltext_cache_dir: Path = typer.Option(
+        Path("artifacts/phase5-fulltext"), help="Cache directory for bounded prior-work full text."
+    ),
+    no_external: bool = typer.Option(
+        False, help="Disable configured external scholarly providers."
+    ),
     no_local: bool = typer.Option(False, help="Disable local world-model search."),
-    no_status_transition: bool = typer.Option(False, help="Keep candidates at status=candidate even after verification."),
+    no_status_transition: bool = typer.Option(
+        False, help="Keep candidates at status=candidate even after verification."
+    ),
 ) -> None:
     """Challenge Phase 4 candidates against configured literature sources and bounded full text."""
     if not no_local and database is None:
@@ -51,7 +65,9 @@ def verify_gaps(
         min_direct_similarity=min_direct_similarity,
         near_match_similarity=near_match_similarity,
         min_broad_searches=min_broad_searches,
-        temporal_cutoff=temporal_cutoff if temporal_cutoff is not None else discovery.temporal_cutoff,
+        temporal_cutoff=temporal_cutoff
+        if temporal_cutoff is not None
+        else discovery.temporal_cutoff,
         include_external=not no_external,
         include_local=not no_local,
         allow_status_transition=not no_status_transition,
@@ -63,7 +79,9 @@ def verify_gaps(
 
     settings = LiteratureSettings()
     service = build_literature_service(settings) if config.include_external else None
-    world = ScientificWorldModel(database) if config.include_local and database is not None else None
+    world = (
+        ScientificWorldModel(database) if config.include_local and database is not None else None
+    )
     fulltext_client: HttpClient | None = None
     fulltext_acquirer: FullTextAcquirer | None = None
     if config.deep_verify:

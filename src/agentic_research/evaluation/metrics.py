@@ -1,17 +1,20 @@
 """Deterministic, dependency-light evaluation metrics."""
+
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterable
 from math import log2
 from statistics import mean
-from typing import Iterable
 
 
 def _safe_div(num: float, den: float) -> float:
     return 0.0 if den == 0 else num / den
 
 
-def precision_recall_f1(predicted: Iterable[str], expected: Iterable[str]) -> tuple[float, float, float]:
+def precision_recall_f1(
+    predicted: Iterable[str], expected: Iterable[str]
+) -> tuple[float, float, float]:
     pred, gold = set(predicted), set(expected)
     tp = len(pred & gold)
     precision = _safe_div(tp, len(pred))
@@ -22,14 +25,19 @@ def precision_recall_f1(predicted: Iterable[str], expected: Iterable[str]) -> tu
 def mean_reciprocal_rank(predictions: list[list[str]], expected: list[set[str]]) -> float:
     if len(predictions) != len(expected):
         raise ValueError("predictions and expected lengths must match")
-    scores = [next((1.0 / rank for rank, item in enumerate(ranked, start=1) if item in gold), 0.0) for ranked, gold in zip(predictions, expected)]
+    scores = [
+        next((1.0 / rank for rank, item in enumerate(ranked, start=1) if item in gold), 0.0)
+        for ranked, gold in zip(predictions, expected, strict=False)
+    ]
     return mean(scores) if scores else 0.0
 
 
 def ndcg_at_k(ranked: list[str], relevant: set[str], k: int) -> float:
     if k <= 0:
         return 0.0
-    dcg = sum(1.0 / log2(rank + 1) for rank, item in enumerate(ranked[:k], start=1) if item in relevant)
+    dcg = sum(
+        1.0 / log2(rank + 1) for rank, item in enumerate(ranked[:k], start=1) if item in relevant
+    )
     ideal_hits = min(len(relevant), k)
     idcg = sum(1.0 / log2(rank + 1) for rank in range(1, ideal_hits + 1))
     return _safe_div(dcg, idcg)
@@ -51,13 +59,19 @@ def macro_field_f1(predicted: list[dict[str, str]], expected: list[dict[str, str
     """Macro-average exact-value F1 per field across cases."""
     if len(predicted) != len(expected):
         raise ValueError("predicted and expected lengths must match")
-    fields = sorted(set().union(*(item.keys() for item in expected), *(item.keys() for item in predicted))) if predicted or expected else []
+    fields = (
+        sorted(
+            set().union(*(item.keys() for item in expected), *(item.keys() for item in predicted))
+        )
+        if predicted or expected
+        else []
+    )
     if not fields:
         return 0.0
     field_scores: list[float] = []
     for field in fields:
         tp = fp = fn = 0
-        for pred, gold in zip(predicted, expected):
+        for pred, gold in zip(predicted, expected, strict=False):
             p, g = pred.get(field), gold.get(field)
             if p is not None and g is not None and p == g:
                 tp += 1
@@ -74,16 +88,23 @@ def macro_field_f1(predicted: list[dict[str, str]], expected: list[dict[str, str
     return mean(field_scores)
 
 
-def binary_classification_metrics(predicted: list[str], expected: list[str], positive: str) -> dict[str, float]:
+def binary_classification_metrics(
+    predicted: list[str], expected: list[str], positive: str
+) -> dict[str, float]:
     if len(predicted) != len(expected):
         raise ValueError("predicted and expected lengths must match")
-    tp = sum(p == positive and e == positive for p, e in zip(predicted, expected))
-    fp = sum(p == positive and e != positive for p, e in zip(predicted, expected))
-    fn = sum(p != positive and e == positive for p, e in zip(predicted, expected))
-    tn = sum(p != positive and e != positive for p, e in zip(predicted, expected))
+    tp = sum(p == positive and e == positive for p, e in zip(predicted, expected, strict=False))
+    fp = sum(p == positive and e != positive for p, e in zip(predicted, expected, strict=False))
+    fn = sum(p != positive and e == positive for p, e in zip(predicted, expected, strict=False))
+    tn = sum(p != positive and e != positive for p, e in zip(predicted, expected, strict=False))
     precision = _safe_div(tp, tp + fp)
     recall = _safe_div(tp, tp + fn)
-    return {"precision": precision, "recall": recall, "f1": _safe_div(2 * precision * recall, precision + recall), "accuracy": _safe_div(tp + tn, len(expected))}
+    return {
+        "precision": precision,
+        "recall": recall,
+        "f1": _safe_div(2 * precision * recall, precision + recall),
+        "accuracy": _safe_div(tp + tn, len(expected)),
+    }
 
 
 def cohen_kappa(labels_a: list[str], labels_b: list[str]) -> float:
@@ -91,7 +112,7 @@ def cohen_kappa(labels_a: list[str], labels_b: list[str]) -> float:
         raise ValueError("rater label lengths must match")
     if not labels_a:
         return 0.0
-    observed = mean(a == b for a, b in zip(labels_a, labels_b))
+    observed = mean(a == b for a, b in zip(labels_a, labels_b, strict=False))
     categories = sorted(set(labels_a) | set(labels_b))
     p_a = Counter(labels_a)
     p_b = Counter(labels_b)
@@ -120,7 +141,9 @@ def krippendorff_alpha_nominal(ratings: list[list[str | None]]) -> float:
     return 1.0 - _safe_div(do, expected_disagreement) if expected_disagreement else 1.0
 
 
-def bootstrap_mean_ci(values: list[float], *, samples: int = 2000, alpha: float = 0.05, seed: int = 0) -> tuple[float, float]:
+def bootstrap_mean_ci(
+    values: list[float], *, samples: int = 2000, alpha: float = 0.05, seed: int = 0
+) -> tuple[float, float]:
     if not 0 < alpha < 1:
         raise ValueError("alpha must be in (0, 1)")
     if not values:
@@ -146,4 +169,10 @@ def temporal_leakage(prediction_years: dict[str, int | None], cutoff_year: int) 
     total = len(prediction_years)
     future = sum(year is not None and year > cutoff_year for year in prediction_years.values())
     unknown = sum(year is None for year in prediction_years.values())
-    return {"leakage_rate": _safe_div(future, total), "unknown_year_rate": _safe_div(unknown, total), "future_items": float(future), "unknown_year_items": float(unknown), "total_items": float(total)}
+    return {
+        "leakage_rate": _safe_div(future, total),
+        "unknown_year_rate": _safe_div(unknown, total),
+        "future_items": float(future),
+        "unknown_year_items": float(unknown),
+        "total_items": float(total),
+    }

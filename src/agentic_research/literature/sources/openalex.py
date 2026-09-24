@@ -22,7 +22,7 @@ class OpenAlexAdapter(LiteratureRetriever):
         *,
         api_key: str,
         client: HttpClient | None = None,
-        user_agent: str = "Agentic-Research/0.2 (+https://github.com/ZHX4/Agentic-Research)",
+        user_agent: str = "Agentic-Research/1.2.0 (+https://github.com/ZHX4/Agentic-Research)",
         timeout_seconds: float = 30.0,
         min_interval_seconds: float = 0.1,
     ) -> None:

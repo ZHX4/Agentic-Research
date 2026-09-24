@@ -22,7 +22,7 @@ def index_extraction(
     vectors: dict[str, list[float]] = {}
     if embedder is not None and extraction.chunks:
         for start in range(0, len(extraction.chunks), batch_size):
-            batch = extraction.chunks[start:start + batch_size]
+            batch = extraction.chunks[start : start + batch_size]
             encoded = embedder.embed([chunk.text for chunk in batch])
             if len(encoded) != len(batch):
                 raise ValueError("Embedding provider returned a different number of vectors")
@@ -30,4 +30,6 @@ def index_extraction(
                 if len(vector) != embedder.dimension:
                     raise ValueError("Embedding provider returned an inconsistent dimension")
                 vectors[chunk.chunk_id] = vector
-    world.index_extraction(paper, extraction, vectors=vectors, vector_model=embedder.model_id if embedder else None)
+    world.index_extraction(
+        paper, extraction, vectors=vectors, vector_model=embedder.model_id if embedder else None
+    )

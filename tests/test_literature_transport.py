@@ -38,11 +38,13 @@ def test_http_client_raises_after_retryable_exhaustion() -> None:
         return httpx.Response(503, request=request)
 
     transport = httpx.MockTransport(handler)
-    with pytest.raises(httpx.HTTPStatusError):
-        with HttpClient(
+    with (
+        HttpClient(
             user_agent="test",
             rate_limiter=RateLimiter(0),
             retry_policy=RetryPolicy(max_attempts=2, base_delay_seconds=0, max_delay_seconds=0),
             transport=transport,
-        ) as client:
-            client.get("https://example.test")
+        ) as client,
+        pytest.raises(httpx.HTTPStatusError),
+    ):
+        client.get("https://example.test")

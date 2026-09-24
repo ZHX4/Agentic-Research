@@ -1,7 +1,7 @@
-from pathlib import Path
 import hashlib
 import sqlite3
 import struct
+from pathlib import Path
 
 import pytest
 
@@ -36,17 +36,27 @@ def _extraction(paper: Paper, texts: list[str]) -> StructuredExtraction:
     blocks = [_block(index, text) for index, text in enumerate(texts)]
     sections = detect_sections(paper.paper_id, blocks)
     chunks = chunk_blocks(paper.paper_id, blocks, sections, target_chars=1000, max_chars=2000)
-    return StructuredExtraction(extraction_id=f"e-{paper.paper_id}", paper_id=paper.paper_id, sections=sections, chunks=chunks, extractor_version="test")
+    return StructuredExtraction(
+        extraction_id=f"e-{paper.paper_id}",
+        paper_id=paper.paper_id,
+        sections=sections,
+        chunks=chunks,
+        extractor_version="test",
+    )
 
 
 def test_world_model_index_and_hybrid_retrieval(tmp_path: Path) -> None:
     db = tmp_path / "world.sqlite"
     paper = _paper("p1", "Retrieval study", 2024, "test")
-    extraction = _extraction(paper, ["Retrieval improves factual accuracy.", "We evaluate question answering."])
+    extraction = _extraction(
+        paper, ["Retrieval improves factual accuracy.", "We evaluate question answering."]
+    )
     embedder = HashEmbeddingProvider(32)
     with ScientificWorldModel(db) as world:
         index_extraction(world, paper, extraction, embedder=embedder)
-        response = HybridRetriever(world, embedder=embedder, reranker=LexicalReranker()).search("factual accuracy", mode="hybrid", limit=5)
+        response = HybridRetriever(world, embedder=embedder, reranker=LexicalReranker()).search(
+            "factual accuracy", mode="hybrid", limit=5
+        )
     assert response.hits
     assert response.hits[0].paper_id == "p1"
     assert "lexical" in response.hits[0].retrieval_reasons
@@ -62,7 +72,9 @@ def test_temporal_cutoff_excludes_future_documents(tmp_path: Path) -> None:
     with ScientificWorldModel(db) as world:
         index_extraction(world, old, _extraction(old, ["retrieval evidence"]), embedder=embedder)
         index_extraction(world, new, _extraction(new, ["retrieval evidence"]), embedder=embedder)
-        response = HybridRetriever(world, embedder=embedder).search("retrieval", filters=RetrievalFilters(temporal_cutoff=2022), mode="hybrid", limit=10)
+        response = HybridRetriever(world, embedder=embedder).search(
+            "retrieval", filters=RetrievalFilters(temporal_cutoff=2022), mode="hybrid", limit=10
+        )
     assert response.hits
     assert all(hit.year is not None and hit.year <= 2022 for hit in response.hits)
 
@@ -94,9 +106,11 @@ def test_unicode_lexical_retrieval(tmp_path: Path) -> None:
 
 
 def test_candidate_limit_cannot_be_smaller_than_limit(tmp_path: Path) -> None:
-    with ScientificWorldModel(tmp_path / "world.sqlite") as world:
-        with pytest.raises(ValueError, match="candidate_limit"):
-            HybridRetriever(world).search("retrieval", mode="lexical", limit=10, candidate_limit=5)
+    with (
+        ScientificWorldModel(tmp_path / "world.sqlite") as world,
+        pytest.raises(ValueError, match="candidate_limit"),
+    ):
+        HybridRetriever(world).search("retrieval", mode="lexical", limit=10, candidate_limit=5)
 
 
 def test_embedding_model_isolation(tmp_path: Path) -> None:
@@ -105,7 +119,9 @@ def test_embedding_model_isolation(tmp_path: Path) -> None:
     index_embedder = HashEmbeddingProvider(16)
     query_embedder = HashEmbeddingProvider(32)
     with ScientificWorldModel(db) as world:
-        index_extraction(world, paper, _extraction(paper, ["semantic retrieval"]), embedder=index_embedder)
+        index_extraction(
+            world, paper, _extraction(paper, ["semantic retrieval"]), embedder=index_embedder
+        )
         response = HybridRetriever(world, embedder=query_embedder).search("semantic", mode="dense")
     assert response.hits == []
 
@@ -117,9 +133,13 @@ def test_reindex_without_embedding_preserves_existing_vector(tmp_path: Path) -> 
     with ScientificWorldModel(db) as world:
         extraction = _extraction(paper, ["persistent vector retrieval"])
         index_extraction(world, paper, extraction, embedder=embedder)
-        before = world.connection.execute("SELECT vector, vector_model FROM chunks WHERE paper_id='p1'").fetchone()
+        before = world.connection.execute(
+            "SELECT vector, vector_model FROM chunks WHERE paper_id='p1'"
+        ).fetchone()
         index_extraction(world, paper, extraction, embedder=None)
-        after = world.connection.execute("SELECT vector, vector_model FROM chunks WHERE paper_id='p1'").fetchone()
+        after = world.connection.execute(
+            "SELECT vector, vector_model FROM chunks WHERE paper_id='p1'"
+        ).fetchone()
     assert bytes(before["vector"]) == bytes(after["vector"])
     assert before["vector_model"] == after["vector_model"] == "hash:16"
 
@@ -141,7 +161,10 @@ def test_vector_corruption_is_detected(tmp_path: Path) -> None:
     with ScientificWorldModel(db) as world:
         extraction = _extraction(paper, ["corrupt vector"])
         index_extraction(world, paper, extraction, embedder=embedder)
-        world.connection.execute("UPDATE chunks SET vector=? WHERE paper_id='p1'", (sqlite3.Binary(struct.pack('<f', 1.0)),))
+        world.connection.execute(
+            "UPDATE chunks SET vector=? WHERE paper_id='p1'",
+            (sqlite3.Binary(struct.pack("<f", 1.0)),),
+        )
         world.connection.commit()
         with pytest.raises(ValueError, match="Corrupt vector blob"):
             HybridRetriever(world, embedder=embedder).search("corrupt", mode="dense")
@@ -151,7 +174,11 @@ def test_graph_traversal_direction(tmp_path: Path) -> None:
     db = tmp_path / "world.sqlite"
     with ScientificWorldModel(db) as world:
         for node_id in ("a", "b", "c"):
-            world.upsert_node(WorldNode(node_id=node_id, node_type="paper", paper_id=node_id, label=node_id.upper()))
+            world.upsert_node(
+                WorldNode(
+                    node_id=node_id, node_type="paper", paper_id=node_id, label=node_id.upper()
+                )
+            )
         world.upsert_edge(WorldEdge(edge_id="ab", source_id="a", target_id="b", edge_type="cites"))
         world.upsert_edge(WorldEdge(edge_id="bc", source_id="b", target_id="c", edge_type="cites"))
         world.commit()
@@ -163,6 +190,8 @@ def test_graph_traversal_direction(tmp_path: Path) -> None:
 
 
 def test_world_model_rejects_unknown_traversal_start(tmp_path: Path) -> None:
-    with ScientificWorldModel(tmp_path / "world.sqlite") as world:
-        with pytest.raises(ValueError, match="Unknown start node"):
-            world.traverse("missing")
+    with (
+        ScientificWorldModel(tmp_path / "world.sqlite") as world,
+        pytest.raises(ValueError, match="Unknown start node"),
+    ):
+        world.traverse("missing")

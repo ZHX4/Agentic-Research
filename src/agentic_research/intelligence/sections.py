@@ -9,10 +9,27 @@ from agentic_research.schemas.paper_intelligence import Section
 
 _NUMBERED = re.compile(r"^(?P<num>\d+(?:\.\d+)*)[.)]?\s+(?P<title>.+)$")
 _KNOWN = {
-    "abstract", "introduction", "background", "related work", "literature review", "method",
-    "methods", "methodology", "approach", "materials and methods", "experiments",
-    "experimental setup", "results", "discussion", "conclusion", "conclusions",
-    "limitations", "future work", "references", "appendix", "supplementary material",
+    "abstract",
+    "introduction",
+    "background",
+    "related work",
+    "literature review",
+    "method",
+    "methods",
+    "methodology",
+    "approach",
+    "materials and methods",
+    "experiments",
+    "experimental setup",
+    "results",
+    "discussion",
+    "conclusion",
+    "conclusions",
+    "limitations",
+    "future work",
+    "references",
+    "appendix",
+    "supplementary material",
 }
 
 

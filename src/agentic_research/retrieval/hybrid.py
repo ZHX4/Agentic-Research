@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import Sequence
+from collections.abc import Sequence
+from typing import Literal
 
 from agentic_research.retrieval.embeddings import EmbeddingProvider, cosine_similarity
 from agentic_research.retrieval.reranking import Reranker
@@ -14,7 +15,14 @@ from agentic_research.world_model.store import ScientificWorldModel
 class HybridRetriever:
     """Hybrid lexical/dense retriever with reciprocal-rank fusion."""
 
-    def __init__(self, world: ScientificWorldModel, *, embedder: EmbeddingProvider | None = None, reranker: Reranker | None = None, rrf_k: int = 60) -> None:
+    def __init__(
+        self,
+        world: ScientificWorldModel,
+        *,
+        embedder: EmbeddingProvider | None = None,
+        reranker: Reranker | None = None,
+        rrf_k: int = 60,
+    ) -> None:
         if rrf_k < 1:
             raise ValueError("rrf_k must be positive")
         self.world = world
@@ -22,7 +30,15 @@ class HybridRetriever:
         self.reranker = reranker
         self.rrf_k = rrf_k
 
-    def search(self, query: str, *, limit: int = 10, mode: str = "hybrid", filters: RetrievalFilters | None = None, candidate_limit: int | None = None) -> RetrievalResponse:
+    def search(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+        mode: Literal["lexical", "dense", "hybrid"] = "hybrid",
+        filters: RetrievalFilters | None = None,
+        candidate_limit: int | None = None,
+    ) -> RetrievalResponse:
         if not query.strip():
             raise ValueError("query must not be empty")
         if limit < 1:
@@ -36,14 +52,26 @@ class HybridRetriever:
 
         filter_dict = (filters or RetrievalFilters()).model_dump()
         candidate_limit = candidate_limit or max(50, limit * 5)
-        lexical_rows = self.world.lexical_search(query, limit=candidate_limit, filters=filter_dict) if mode in {"lexical", "hybrid"} else []
-        dense_rows, dense_scores = self._dense_rows(query, candidate_limit, filter_dict) if mode in {"dense", "hybrid"} else ([], {})
+        lexical_rows = (
+            self.world.lexical_search(query, limit=candidate_limit, filters=filter_dict)
+            if mode in {"lexical", "hybrid"}
+            else []
+        )
+        dense_rows, dense_scores = (
+            self._dense_rows(query, candidate_limit, filter_dict)
+            if mode in {"dense", "hybrid"}
+            else ([], {})
+        )
 
         hits_by_id: dict[str, RetrievalHit] = {}
         lexical_rank = {row["chunk_id"]: rank for rank, row in enumerate(lexical_rows, start=1)}
         dense_rank = {row["chunk_id"]: rank for rank, row in enumerate(dense_rows, start=1)}
-        lexical_score_by_id = {row["chunk_id"]: 1.0 / rank for rank, row in enumerate(lexical_rows, start=1)}
-        row_by_id: dict[str, sqlite3.Row] = {row["chunk_id"]: row for row in [*lexical_rows, *dense_rows]}
+        lexical_score_by_id = {
+            row["chunk_id"]: 1.0 / rank for rank, row in enumerate(lexical_rows, start=1)
+        }
+        row_by_id: dict[str, sqlite3.Row] = {
+            row["chunk_id"]: row for row in [*lexical_rows, *dense_rows]
+        }
 
         for chunk_id in sorted(set(lexical_rank) | set(dense_rank)):
             row = row_by_id[chunk_id]
@@ -71,17 +99,23 @@ class HybridRetriever:
                 retrieval_reasons=reasons,
             )
 
-        ranked = sorted(hits_by_id.values(), key=lambda hit: (-hit.fused_score, hit.chunk_id))[:candidate_limit]
+        ranked = sorted(hits_by_id.values(), key=lambda hit: (-hit.fused_score, hit.chunk_id))[
+            :candidate_limit
+        ]
         if self.reranker is not None and ranked:
             ranked = self.reranker.rerank(query, ranked)
         return RetrievalResponse(query=query, mode=mode, hits=ranked[:limit])
 
-    def _dense_rows(self, query: str, limit: int, filters: dict[str, object]) -> tuple[list[sqlite3.Row], dict[str, float]]:
+    def _dense_rows(
+        self, query: str, limit: int, filters: dict[str, object]
+    ) -> tuple[list[sqlite3.Row], dict[str, float]]:
         if self.embedder is None:
             return [], {}
         query_vector = self.embedder.embed([query])[0]
         scored: list[tuple[float, sqlite3.Row]] = []
-        for row in self.world.dense_candidates(embedding_model=self.embedder.model_id, filters=filters):
+        for row in self.world.dense_candidates(
+            embedding_model=self.embedder.model_id, filters=filters
+        ):
             score = self._cosine_from_blob(query_vector, row["vector"], int(row["vector_dim"]))
             scored.append((score, row))
         scored.sort(key=lambda pair: (-pair[0], pair[1]["chunk_id"]))
@@ -91,10 +125,15 @@ class HybridRetriever:
     @staticmethod
     def _cosine_from_blob(query_vector: Sequence[float], blob: bytes, dimension: int) -> float:
         import struct
+
         if len(query_vector) != dimension:
-            raise ValueError(f"Embedding dimension mismatch: query={len(query_vector)}, index={dimension}")
+            raise ValueError(
+                f"Embedding dimension mismatch: query={len(query_vector)}, index={dimension}"
+            )
         expected_bytes = dimension * 4
         if len(blob) != expected_bytes:
-            raise ValueError(f"Corrupt vector blob: expected {expected_bytes} bytes, got {len(blob)}")
+            raise ValueError(
+                f"Corrupt vector blob: expected {expected_bytes} bytes, got {len(blob)}"
+            )
         values = struct.unpack(f"<{dimension}f", blob)
         return cosine_similarity(query_vector, values)

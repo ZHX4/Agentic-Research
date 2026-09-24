@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import httpx
+from pydantic import HttpUrl
 
 from agentic_research.literature.fulltext import FullTextAcquirer, FullTextManifest, parse_full_text
 from agentic_research.literature.transport import HttpClient, RateLimiter
@@ -13,25 +14,32 @@ def test_missing_fulltext_url_is_recorded_as_failed(tmp_path: Path) -> None:
         manifest = FullTextAcquirer(client=client, output_dir=tmp_path).acquire(
             Paper(paper_id="p1", title="No URL")
         )
-        assert manifest.status == "failed"
+        assert manifest.status == "not_found"
         assert manifest.requested_url is None
-        assert "No full-text candidate URL" in (manifest.error or "")
+        assert "No candidate full-text URL" in (manifest.error or "")
     finally:
         client.close()
 
 
 def test_html_acquisition_and_parsing(tmp_path: Path) -> None:
-    html = b"<html><head><title>Test Paper</title></head><body><script>x=1</script><h1>Hello</h1><p>World</p></body></html>"
+    html = (
+        b"<html><head><title>Test Paper</title></head><body><script>x=1</script>"
+        b"<h1>Hello</h1><p>World</p></body></html>"
+    )
 
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, content=html, headers={"content-type": "text/html; charset=utf-8"}, request=request)
+        return httpx.Response(
+            200, content=html, headers={"content-type": "text/html; charset=utf-8"}, request=request
+        )
 
-    client = HttpClient(user_agent="test", rate_limiter=RateLimiter(0), transport=httpx.MockTransport(handler))
+    client = HttpClient(
+        user_agent="test", rate_limiter=RateLimiter(0), transport=httpx.MockTransport(handler)
+    )
     try:
         paper = Paper(
             paper_id="p1",
             title="Test",
-            url="https://example.org/paper.html",
+            url=HttpUrl("https://example.org/paper.html"),
         )
         manifest = FullTextAcquirer(client=client, output_dir=tmp_path).acquire(paper)
         assert manifest.status == "downloaded"
@@ -57,8 +65,8 @@ def test_pdf_parser_reads_text(tmp_path: Path) -> None:
     manifest = FullTextManifest(
         paper_id="p1",
         source="test",
-        requested_url="https://example.org/paper.pdf",
-        final_url="https://example.org/paper.pdf",
+        requested_url=HttpUrl("https://example.org/paper.pdf"),
+        final_url=HttpUrl("https://example.org/paper.pdf"),
         media_type="application/pdf",
         status="downloaded",
         local_path=str(pdf_path),
