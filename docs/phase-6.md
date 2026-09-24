@@ -79,7 +79,7 @@ The frontier is computed across novelty, significance, and feasibility. Composit
 ## CLI
 
 ```bash
-agentic-research-hypotheses reason \
+agentic-research-hypotheses \
   --input artifacts/novelty-report.json \
   --output artifacts/hypothesis-run.json
 ```

@@ -1,6 +1,14 @@
+# Reference defaults for Agentic-Research.
+#
+# This file is documentation, not runtime configuration: the application does
+# not load it. The authoritative defaults live in code (Pydantic schemas and
+# function signatures). The values below intentionally mirror those defaults,
+# and tests/test_config_drift.py fails if they drift apart. The `safety`
+# section states policy enforced in code and covered by tests; it is not read
+# at runtime.
 project:
   name: Agentic-Research
-  version: 1.0.0
+  version: 1.2.0
 
 research:
   domain: "AI/ML research"

@@ -109,7 +109,7 @@ Coverage is a search-budget property, not a claim about the completeness of scie
 ## CLI
 
 ```bash
-agentic-research-verify verify-gaps \
+agentic-research-verify \
   --input artifacts/gap-discovery.json \
   --output artifacts/novelty-report.json \
   --database artifacts/world-model.sqlite
@@ -118,7 +118,7 @@ agentic-research-verify verify-gaps \
 Bounded deep verification can be tuned with:
 
 ```bash
-agentic-research-verify verify-gaps \
+agentic-research-verify \
   --input artifacts/gap-discovery.json \
   --output artifacts/novelty-report.json \
   --database artifacts/world-model.sqlite \
@@ -130,7 +130,7 @@ agentic-research-verify verify-gaps \
 External search can be disabled for deterministic local verification:
 
 ```bash
-agentic-research-verify verify-gaps \
+agentic-research-verify \
   --input artifacts/gap-discovery.json \
   --output artifacts/novelty-report.json \
   --database artifacts/world-model.sqlite \
@@ -140,7 +140,7 @@ agentic-research-verify verify-gaps \
 Or local search can be disabled when only configured external sources are wanted:
 
 ```bash
-agentic-research-verify verify-gaps \
+agentic-research-verify \
   --input artifacts/gap-discovery.json \
   --output artifacts/novelty-report.json \
   --no-local
