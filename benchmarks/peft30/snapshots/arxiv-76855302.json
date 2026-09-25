@@ -1,0 +1,28 @@
+{
+  "collected_at_utc": "2026-09-25T02:55:00+00:00",
+  "payload_hash": "2e5d7070328b3c2990c60e451c574c9a690e04b8c0f286bbf124b98934d9b98a",
+  "provider": "arxiv",
+  "query": "adapter tuning AdapterHub bottleneck adapter",
+  "request_params": {
+    "max_results": 15
+  },
+  "result_count": 15,
+  "result_ids": [
+    "1503.02007v1",
+    "2007.07779v3",
+    "2106.09685v2",
+    "2302.08453v2",
+    "2303.16199v3",
+    "2304.12620v7",
+    "2306.00863v2",
+    "2412.03632v1",
+    "2503.11937v4",
+    "2504.15610v4",
+    "2505.06002v2",
+    "2505.18612v4",
+    "2601.18350v5",
+    "2604.14174v2",
+    "2605.30189v1"
+  ],
+  "temporal_filter": "none-at-snapshot-time; cutoff applied client-side"
+}

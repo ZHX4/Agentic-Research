@@ -1,0 +1,28 @@
+{
+  "collected_at_utc": "2026-09-25T03:05:00+00:00",
+  "payload_hash": "77b70bc305aa420983c3b82f0dacb4a82074b2f547a70d2e0d1615ba7be42c6b",
+  "provider": "arxiv",
+  "query": "PEFT translation summarization GLUE SuperGLUE",
+  "request_params": {
+    "max_results": 15
+  },
+  "result_count": 15,
+  "result_ids": [
+    "1409.7085v1",
+    "1509.09097v1",
+    "1606.07965v1",
+    "1702.01806v2",
+    "1804.07878v2",
+    "1809.00357v1",
+    "1906.03129v1",
+    "1908.09532v3",
+    "2110.07844v1",
+    "2202.04994v1",
+    "2310.03059v8",
+    "2310.10981v3",
+    "2504.14117v1",
+    "2509.20461v1",
+    "2605.28819v1"
+  ],
+  "temporal_filter": "none-at-snapshot-time; cutoff applied client-side"
+}

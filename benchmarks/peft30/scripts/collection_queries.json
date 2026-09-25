@@ -1,0 +1,1 @@
+{"cutoff": "2022-12-31", "note": "LIVE COLLECTION INPUT - not benchmark truth", "providers": ["openalex", "semantic_scholar", "arxiv"], "queries": ["LoRA low-rank adaptation fine-tuning", "adapter tuning AdapterHub bottleneck adapter", "prefix-tuning prompt tuning parameter efficient", "QLoRA quantized LoRA GSM8K", "PEFT translation summarization GLUE SuperGLUE"]}

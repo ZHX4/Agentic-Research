@@ -1,0 +1,28 @@
+{
+  "collected_at_utc": "2026-09-25T03:05:00+00:00",
+  "payload_hash": "5e5f7765ca68d555b36bc253ec56a4a563b57397b035a39a7b804b82f924cb5e",
+  "provider": "arxiv",
+  "query": "prefix-tuning prompt tuning parameter efficient",
+  "request_params": {
+    "max_results": 15
+  },
+  "result_count": 15,
+  "result_ids": [
+    "1909.03814v1",
+    "2101.00190v1",
+    "2104.08691v2",
+    "2203.10378v1",
+    "2205.11961v2",
+    "2210.14469v1",
+    "2305.12086v2",
+    "2305.15212v1",
+    "2310.19698v2",
+    "2402.01643v2",
+    "2402.02382v3",
+    "2406.19486v1",
+    "2410.02200v5",
+    "2506.13674v3",
+    "2604.01168v2"
+  ],
+  "temporal_filter": "none-at-snapshot-time; cutoff applied client-side"
+}

@@ -1,0 +1,5 @@
+Semantic Scholar NOT RUN on 2026-09-25: HTTP 429 without API key
+(no key available in environment; polite single attempt + no hammering).
+arXiv (5/5) and OpenAlex (5/5, one 429 recovered after backoff) snapshots
+are frozen in this directory. S2 provider validation remains outstanding.
+Live results never become benchmark truth; only adjudicated labels do.

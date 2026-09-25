@@ -1,0 +1,28 @@
+{
+  "collected_at_utc": "2026-09-25T03:05:00+00:00",
+  "payload_hash": "10eee8c0c4204b655a51cf0b1383e9ebaf12d8c2d3912c599ae91e7318f01e51",
+  "provider": "openalex",
+  "query": "PEFT translation summarization GLUE SuperGLUE",
+  "request_params": {
+    "max_results": 15
+  },
+  "result_count": 15,
+  "result_ids": [
+    "W4307653761",
+    "W4313680121",
+    "W4361230739",
+    "W4367365458",
+    "W4384389802",
+    "W4385570815",
+    "W4392240262",
+    "W4401042811",
+    "W4406794439",
+    "W4409287702",
+    "W4409431856",
+    "W4412944455",
+    "W4413184142",
+    "W4414142808",
+    "W4417010035"
+  ],
+  "temporal_filter": "none-at-snapshot-time; cutoff applied client-side"
+}

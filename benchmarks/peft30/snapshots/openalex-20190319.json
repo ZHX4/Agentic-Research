@@ -1,0 +1,28 @@
+{
+  "collected_at_utc": "2026-09-25T02:55:00+00:00",
+  "payload_hash": "5046ecb4a545b7e1c16d2e12ce2d19414b09924ab3695cc02d7c6e5d2272e2b3",
+  "provider": "openalex",
+  "query": "LoRA low-rank adaptation fine-tuning",
+  "request_params": {
+    "max_results": 15
+  },
+  "result_count": 15,
+  "result_ids": [
+    "W3168867926",
+    "W4322766882",
+    "W4386566659",
+    "W4389524340",
+    "W4391871574",
+    "W4392796555",
+    "W4400525231",
+    "W4401545746",
+    "W4402667093",
+    "W4402916156",
+    "W4403753254",
+    "W4403839424",
+    "W4404627781",
+    "W4404781224",
+    "W4414095994"
+  ],
+  "temporal_filter": "none-at-snapshot-time; cutoff applied client-side"
+}

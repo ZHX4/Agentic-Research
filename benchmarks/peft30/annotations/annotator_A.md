@@ -1,0 +1,147 @@
+# Annotator A response sheet (sci-bench-peft30-v1)
+
+Cases: 12. One section per case; transcribe into annotator_A.jsonl. Leave nothing blank.
+
+## peft30v1-N-001 [novelty/terminology]
+
+A proposal concerns 'low-rank adaptation of large language models'. Examine peft30-001 (2021, full text) and peft30-020 (2020, full text). Judge the novelty status of the proposal relative to the pre-cutoff corpus (cutoff 2022-12-31), based on the techniques actually described in each paper.
+
+- label: 
+- source_paper_ids: 
+- evidence_refs: 
+- quoted_passages: 
+- rationale (+ Uncertainty:): 
+- confidence (0..1): 
+- completed_at: 
+
+## peft30v1-N-002 [novelty/terminology]
+
+A proposal concerns 'prefix tuning for text classification'. Examine peft30-004 (2021, full text) and peft30-010 (2022, full text). Judge the novelty status of the proposal relative to the pre-cutoff corpus, based on the methods actually described.
+
+- label: 
+- source_paper_ids: 
+- evidence_refs: 
+- quoted_passages: 
+- rationale (+ Uncertainty:): 
+- confidence (0..1): 
+- completed_at: 
+
+## peft30v1-N-003 [novelty/distinction]
+
+A proposal concerns quantized low-rank adaptation (QLoRA). Examine peft30-021 (2023), peft30-027, peft30-028, and peft30-030. For each paper, judge whether it describes the same technique as the proposal or a materially different one, and judge the overall novelty status. Note publication years: only pre-cutoff papers can disqualify a pre-cutoff proposal; state the year of every paper you rely on.
+
+- label: 
+- source_paper_ids: 
+- evidence_refs: 
+- quoted_passages: 
+- rationale (+ Uncertainty:): 
+- confidence (0..1): 
+- completed_at: 
+
+## peft30v1-N-004 [novelty/distinction]
+
+A proposal concerns dynamic rank schedules for low-rank adaptation. Examine peft30-025 and peft30-026. Judge whether the two papers describe the same technique or materially different ones, and judge the novelty status of the proposal.
+
+- label: 
+- source_paper_ids: 
+- evidence_refs: 
+- quoted_passages: 
+- rationale (+ Uncertainty:): 
+- confidence (0..1): 
+- completed_at: 
+
+## peft30v1-N-005 [novelty/distinction]
+
+A proposal concerns weight-decomposed low-rank adaptation. Examine peft30-001 (2021) and peft30-029 (2024). Judge whether peft30-029 describes the same technique as peft30-001 or a materially different one, and judge the novelty status of the proposal.
+
+- label: 
+- source_paper_ids: 
+- evidence_refs: 
+- quoted_passages: 
+- rationale (+ Uncertainty:): 
+- confidence (0..1): 
+- completed_at: 
+
+## peft30v1-N-006 [novelty/equivalence]
+
+A proposal concerns 'low-rank adaptation for abstractive summarization'. Search the pre-cutoff corpus (papers dated 2022 or earlier, under any wording or method name) for any paper establishing this combination. Judge the novelty status.
+
+- label: 
+- source_paper_ids: 
+- evidence_refs: 
+- quoted_passages: 
+- rationale (+ Uncertainty:): 
+- confidence (0..1): 
+- completed_at: 
+
+## peft30v1-N-007 [novelty/evidence-availability]
+
+A proposal concerns dynamic search-free low-rank adaptation (DyLoRA). The only related record is peft30-026, which is metadata-only (no full text available). Judge the novelty status given the evidence actually accessible.
+
+- label: 
+- source_paper_ids: 
+- evidence_refs: 
+- quoted_passages: 
+- rationale (+ Uncertainty:): 
+- confidence (0..1): 
+- completed_at: 
+
+## peft30v1-G-001 [gap/gap-candidate]
+
+Candidate opportunity: applying low-rank adaptation (LoRA) to abstractive summarization. Using only the pre-cutoff corpus (papers dated 2022 or earlier), judge whether this candidate is a valid opportunity, already addressed, partially addressed, ambiguous, or unsupported.
+
+- label: 
+- source_paper_ids: 
+- evidence_refs: 
+- quoted_passages: 
+- rationale (+ Uncertainty:): 
+- confidence (0..1): 
+- completed_at: 
+
+## peft30v1-G-002 [gap/low-support]
+
+Candidate opportunity: adapter tuning for image-to-video transfer. Related record: peft30-015. Using only the pre-cutoff corpus, judge the candidate.
+
+- label: 
+- source_paper_ids: 
+- evidence_refs: 
+- quoted_passages: 
+- rationale (+ Uncertainty:): 
+- confidence (0..1): 
+- completed_at: 
+
+## peft30v1-G-003 [gap/low-support]
+
+Candidate opportunity: parameter-efficient tuning for ConvNets. Related record: peft30-016. Using only the pre-cutoff corpus, judge the candidate.
+
+- label: 
+- source_paper_ids: 
+- evidence_refs: 
+- quoted_passages: 
+- rationale (+ Uncertainty:): 
+- confidence (0..1): 
+- completed_at: 
+
+## peft30v1-G-004 [gap/contradiction]
+
+Candidate opportunity concerning the claim that parameter-efficient tuning matches full fine-tuning. Related records: peft30-005, peft30-006, peft30-010, peft30-011. Compare what each paper actually reports, including the experimental conditions (model, scale, task). Judge the candidate.
+
+- label: 
+- source_paper_ids: 
+- evidence_refs: 
+- quoted_passages: 
+- rationale (+ Uncertainty:): 
+- confidence (0..1): 
+- completed_at: 
+
+## peft30v1-R-001 [retrieval/retrieval]
+
+Query: 'LoRA summarization'. List the frozen corpus papers relevant to this query as a ranked list of paper IDs (most relevant first) in source_paper_ids, with label 'relevant-list'. Use the frozen manifest titles/abstracts; full text where available.
+
+- label: 
+- source_paper_ids: 
+- evidence_refs: 
+- quoted_passages: 
+- rationale (+ Uncertainty:): 
+- confidence (0..1): 
+- completed_at: 

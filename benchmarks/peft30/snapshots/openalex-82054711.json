@@ -1,0 +1,28 @@
+{
+  "collected_at_utc": "2026-09-25T03:05:00+00:00",
+  "payload_hash": "75b59aecf7931d885961fc9b46978d4df5ca099c9ed798cfc78bbe5c96009b72",
+  "provider": "openalex",
+  "query": "prefix-tuning prompt tuning parameter efficient",
+  "request_params": {
+    "max_results": 15
+  },
+  "result_count": 15,
+  "result_ids": [
+    "W3152956381",
+    "W3174770825",
+    "W3185341429",
+    "W3198571508",
+    "W3205270560",
+    "W4226278401",
+    "W4280534475",
+    "W4285247752",
+    "W4309811444",
+    "W4322766882",
+    "W4384071683",
+    "W4385570973",
+    "W4386728933",
+    "W4389524317",
+    "W4390871722"
+  ],
+  "temporal_filter": "none-at-snapshot-time; cutoff applied client-side"
+}

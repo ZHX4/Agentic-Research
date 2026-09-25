@@ -24,6 +24,16 @@ def build_literature_service(settings: LiteratureSettings | None = None) -> Lite
                 timeout_seconds=timeout_seconds,
             )
         )
+    else:
+        # Anonymous OpenAlex access works with lower rate limits; keep the
+        # adapter so collection does not silently lose a provider.
+        adapters.append(
+            OpenAlexAdapter(
+                min_interval_seconds=settings.openalex_min_interval_seconds,
+                user_agent=user_agent,
+                timeout_seconds=timeout_seconds,
+            )
+        )
     adapters.append(
         SemanticScholarAdapter(
             api_key=settings.semantic_scholar_api_key,

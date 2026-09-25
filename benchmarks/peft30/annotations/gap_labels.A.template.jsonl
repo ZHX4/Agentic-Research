@@ -1,0 +1,1 @@
+{"annotator_id": "annotator-a", "case_id": "EXAMPLE-gap-001", "confidence": 0.7, "evidence_refs": ["peft30-001:section:3"], "label": "valid_opportunity", "quoted_passages": ["QUOTE FROM SOURCE - do not fabricate"], "rationale": "Why this label; what was checked", "source_paper_ids": ["peft30-001", "peft30-002"], "temporal_context": "pre-cutoff-2022"}

@@ -1,0 +1,166 @@
+[
+  {
+    "category": "terminology",
+    "human_label": true,
+    "kind": "novelty",
+    "question": "A proposal concerns 'low-rank adaptation of large language models'. Examine peft30-001 (2021, full text) and peft30-020 (2020, full text). Judge the novelty status of the proposal relative to the pre-cutoff corpus (cutoff 2022-12-31), based on the techniques actually described in each paper.",
+    "related_paper_ids": [
+      "peft30-001",
+      "peft30-020"
+    ],
+    "temporal_scope": "pre-cutoff only",
+    "case_id": "peft30v1-N-001"
+  },
+  {
+    "category": "terminology",
+    "human_label": true,
+    "kind": "novelty",
+    "question": "A proposal concerns 'prefix tuning for text classification'. Examine peft30-004 (2021, full text) and peft30-010 (2022, full text). Judge the novelty status of the proposal relative to the pre-cutoff corpus, based on the methods actually described.",
+    "related_paper_ids": [
+      "peft30-004",
+      "peft30-010"
+    ],
+    "temporal_scope": "pre-cutoff only",
+    "case_id": "peft30v1-N-002"
+  },
+  {
+    "category": "distinction",
+    "human_label": true,
+    "kind": "novelty",
+    "question": "A proposal concerns quantized low-rank adaptation (QLoRA). Examine peft30-021 (2023), peft30-027, peft30-028, and peft30-030. For each paper, judge whether it describes the same technique as the proposal or a materially different one, and judge the overall novelty status. Note publication years: only pre-cutoff papers can disqualify a pre-cutoff proposal; state the year of every paper you rely on.",
+    "related_paper_ids": [
+      "peft30-021",
+      "peft30-027",
+      "peft30-028",
+      "peft30-030"
+    ],
+    "temporal_scope": "mixed; observe cutoff",
+    "case_id": "peft30v1-N-003"
+  },
+  {
+    "category": "distinction",
+    "human_label": true,
+    "kind": "novelty",
+    "question": "A proposal concerns dynamic rank schedules for low-rank adaptation. Examine peft30-025 and peft30-026. Judge whether the two papers describe the same technique or materially different ones, and judge the novelty status of the proposal.",
+    "related_paper_ids": [
+      "peft30-025",
+      "peft30-026"
+    ],
+    "temporal_scope": "mixed; observe cutoff",
+    "case_id": "peft30v1-N-004"
+  },
+  {
+    "category": "distinction",
+    "human_label": true,
+    "kind": "novelty",
+    "question": "A proposal concerns weight-decomposed low-rank adaptation. Examine peft30-001 (2021) and peft30-029 (2024). Judge whether peft30-029 describes the same technique as peft30-001 or a materially different one, and judge the novelty status of the proposal.",
+    "related_paper_ids": [
+      "peft30-001",
+      "peft30-029"
+    ],
+    "temporal_scope": "mixed; observe cutoff",
+    "case_id": "peft30v1-N-005"
+  },
+  {
+    "category": "equivalence",
+    "human_label": true,
+    "kind": "novelty",
+    "question": "A proposal concerns 'low-rank adaptation for abstractive summarization'. Search the pre-cutoff corpus (papers dated 2022 or earlier, under any wording or method name) for any paper establishing this combination. Judge the novelty status.",
+    "related_paper_ids": [
+      "peft30-001"
+    ],
+    "temporal_scope": "pre-cutoff only",
+    "case_id": "peft30v1-N-006"
+  },
+  {
+    "category": "evidence-availability",
+    "human_label": true,
+    "kind": "novelty",
+    "question": "A proposal concerns dynamic search-free low-rank adaptation (DyLoRA). The only related record is peft30-026, which is metadata-only (no full text available). Judge the novelty status given the evidence actually accessible.",
+    "related_paper_ids": [
+      "peft30-026"
+    ],
+    "temporal_scope": "mixed; observe cutoff",
+    "case_id": "peft30v1-N-007"
+  },
+  {
+    "category": "gap-candidate",
+    "human_label": true,
+    "kind": "gap",
+    "question": "Candidate opportunity: applying low-rank adaptation (LoRA) to abstractive summarization. Using only the pre-cutoff corpus (papers dated 2022 or earlier), judge whether this candidate is a valid opportunity, already addressed, partially addressed, ambiguous, or unsupported.",
+    "related_paper_ids": [
+      "peft30-001",
+      "peft30-004"
+    ],
+    "temporal_scope": "pre-cutoff only",
+    "case_id": "peft30v1-G-001"
+  },
+  {
+    "category": "low-support",
+    "human_label": true,
+    "kind": "gap",
+    "question": "Candidate opportunity: adapter tuning for image-to-video transfer. Related record: peft30-015. Using only the pre-cutoff corpus, judge the candidate.",
+    "related_paper_ids": [
+      "peft30-015"
+    ],
+    "temporal_scope": "pre-cutoff only",
+    "case_id": "peft30v1-G-002"
+  },
+  {
+    "category": "low-support",
+    "human_label": true,
+    "kind": "gap",
+    "question": "Candidate opportunity: parameter-efficient tuning for ConvNets. Related record: peft30-016. Using only the pre-cutoff corpus, judge the candidate.",
+    "related_paper_ids": [
+      "peft30-016"
+    ],
+    "temporal_scope": "pre-cutoff only",
+    "case_id": "peft30v1-G-003"
+  },
+  {
+    "category": "contradiction",
+    "human_label": true,
+    "kind": "gap",
+    "question": "Candidate opportunity concerning the claim that parameter-efficient tuning matches full fine-tuning. Related records: peft30-005, peft30-006, peft30-010, peft30-011. Compare what each paper actually reports, including the experimental conditions (model, scale, task). Judge the candidate.",
+    "related_paper_ids": [
+      "peft30-005",
+      "peft30-006",
+      "peft30-010",
+      "peft30-011"
+    ],
+    "temporal_scope": "pre-cutoff only",
+    "case_id": "peft30v1-G-004"
+  },
+  {
+    "category": "retrieval",
+    "human_label": true,
+    "kind": "retrieval",
+    "question": "Query: 'LoRA summarization'. List the frozen corpus papers relevant to this query as a ranked list of paper IDs (most relevant first) in source_paper_ids, with label 'relevant-list'. Use the frozen manifest titles/abstracts; full text where available.",
+    "related_paper_ids": [
+      "peft30-001",
+      "peft30-004"
+    ],
+    "temporal_scope": "whole corpus",
+    "case_id": "peft30v1-R-001"
+  },
+  {
+    "category": "temporal",
+    "human_label": false,
+    "kind": "temporal",
+    "question": "SYSTEM CHECK ONLY (no human label): verify peft30-021 (2023) is excluded from 2022-cutoff discovery and that leakage accounting flags any inclusion. Executed by the benchmark runner, not annotators.",
+    "related_paper_ids": [
+      "peft30-021"
+    ],
+    "temporal_scope": "system",
+    "case_id": "peft30v1-T-001"
+  },
+  {
+    "category": "temporal",
+    "human_label": false,
+    "kind": "temporal",
+    "question": "SYSTEM CHECK ONLY (no human label): unknown-year accounting. The frozen corpus contains zero unknown-year papers; this path is covered by infrastructure tests. Not assigned to annotators.",
+    "related_paper_ids": [],
+    "temporal_scope": "system",
+    "case_id": "peft30v1-T-002"
+  }
+]

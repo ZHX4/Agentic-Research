@@ -1,0 +1,28 @@
+{
+  "collected_at_utc": "2026-09-25T03:05:00+00:00",
+  "payload_hash": "d7f3292e4ee163d92b637ea4ef839a665b863d3a23f21ca85fdf639d90a2a44b",
+  "provider": "openalex",
+  "query": "adapter tuning AdapterHub bottleneck adapter",
+  "request_params": {
+    "max_results": 15
+  },
+  "result_count": 15,
+  "result_ids": [
+    "W3023911605",
+    "W3094491777",
+    "W3096966601",
+    "W3172698324",
+    "W3175557894",
+    "W3214578205",
+    "W4225410153",
+    "W4301703097",
+    "W4306294758",
+    "W4322766882",
+    "W4378465281",
+    "W4382246105",
+    "W4385573520",
+    "W4389524048",
+    "W4390548144"
+  ],
+  "temporal_filter": "none-at-snapshot-time; cutoff applied client-side"
+}

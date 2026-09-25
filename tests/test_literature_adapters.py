@@ -124,6 +124,28 @@ def test_semantic_scholar_adapter_maps_response() -> None:
     assert hits[0].paper.metadata["open_access_pdf_url"].endswith("paper.pdf")
 
 
+def test_openalex_adapter_key_is_optional_for_anonymous_access() -> None:
+    seen: dict[str, bool] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["has_key"] = "api_key" in request.url.params
+        return httpx.Response(
+            200,
+            json={"meta": {"next_cursor": None}, "results": []},
+            request=request,
+        )
+
+    with _client(handler) as client:
+        anonymous = OpenAlexAdapter(client=client)
+        assert anonymous.search(SearchQuery(text="test", limit=1)) == []
+    assert seen["has_key"] is False
+
+    with _client(handler) as client:
+        keyed = OpenAlexAdapter(api_key="test-key", client=client)
+        assert keyed.search(SearchQuery(text="test", limit=1)) == []
+    assert seen["has_key"] is True
+
+
 def test_arxiv_adapter_parses_atom_without_double_encoding_query() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         query = request.url.params["search_query"]

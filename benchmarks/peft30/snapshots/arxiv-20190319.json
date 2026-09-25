@@ -1,0 +1,28 @@
+{
+  "collected_at_utc": "2026-09-25T02:55:00+00:00",
+  "payload_hash": "24f55d634e874bcf944c369f1d439b2a063be6cf7a082cd8f1b792d58250398e",
+  "provider": "arxiv",
+  "query": "LoRA low-rank adaptation fine-tuning",
+  "request_params": {
+    "max_results": 15
+  },
+  "result_count": 15,
+  "result_ids": [
+    "2308.03303v3",
+    "2312.03732v1",
+    "2406.03136v2",
+    "2410.16954v2",
+    "2411.14961v3",
+    "2412.09250v3",
+    "2412.09827v1",
+    "2501.19389v4",
+    "2506.00236v2",
+    "2506.15415v1",
+    "2508.21810v1",
+    "2510.27364v1",
+    "2602.04998v2",
+    "2605.18822v1",
+    "2608.12328v1"
+  ],
+  "temporal_filter": "none-at-snapshot-time; cutoff applied client-side"
+}

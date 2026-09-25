@@ -20,15 +20,16 @@ class OpenAlexAdapter(LiteratureRetriever):
     def __init__(
         self,
         *,
-        api_key: str,
+        api_key: str | None = None,
         client: HttpClient | None = None,
         user_agent: str = "Agentic-Research/1.2.0 (+https://github.com/ZHX4/Agentic-Research)",
         timeout_seconds: float = 30.0,
         min_interval_seconds: float = 0.1,
     ) -> None:
-        if not api_key.strip():
-            raise ValueError("OpenAlex API key is required")
-        self._api_key = api_key.strip()
+        # OpenAlex supports anonymous access with lower rate limits; a key
+        # only raises limits. The key is therefore optional.
+        cleaned = api_key.strip() if isinstance(api_key, str) else ""
+        self._api_key = cleaned or None
         self._client = client or HttpClient(
             user_agent=user_agent,
             timeout_seconds=timeout_seconds,
@@ -47,7 +48,6 @@ class OpenAlexAdapter(LiteratureRetriever):
 
         while cursor and len(results) < requested:
             params: dict[str, object] = {
-                "api_key": self._api_key,
                 "search": query.text,
                 "per_page": min(100, requested - len(results)),
                 "cursor": cursor,
@@ -57,6 +57,8 @@ class OpenAlexAdapter(LiteratureRetriever):
                     "abstract_inverted_index"
                 ),
             }
+            if self._api_key is not None:
+                params["api_key"] = self._api_key
             filters: list[str] = []
             if query.year_from is not None:
                 filters.append(f"from_publication_date:{query.year_from}-01-01")

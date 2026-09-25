@@ -1,0 +1,28 @@
+{
+  "collected_at_utc": "2026-09-25T03:05:00+00:00",
+  "payload_hash": "23697e995a513aa0d0d68c53f7a03f8ed41f3d17825ad1171316af53eb6ca3e6",
+  "provider": "openalex",
+  "query": "QLoRA quantized LoRA GSM8K",
+  "request_params": {
+    "max_results": 15
+  },
+  "result_count": 15,
+  "result_ids": [
+    "W4385681736",
+    "W4387686975",
+    "W4388926661",
+    "W4391799377",
+    "W4394029298",
+    "W4394782836",
+    "W4396821554",
+    "W4397028161",
+    "W4401042872",
+    "W4402684305",
+    "W4404782328",
+    "W4404783357",
+    "W4412886745",
+    "W4414290345",
+    "W4415428213"
+  ],
+  "temporal_filter": "none-at-snapshot-time; cutoff applied client-side"
+}

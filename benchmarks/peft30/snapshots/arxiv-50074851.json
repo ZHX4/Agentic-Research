@@ -1,0 +1,28 @@
+{
+  "collected_at_utc": "2026-09-25T03:05:00+00:00",
+  "payload_hash": "eeb539baffe796e1b1fd5ac17460b26233fce969ccc722cdf9788e32821a699b",
+  "provider": "arxiv",
+  "query": "QLoRA quantized LoRA GSM8K",
+  "request_params": {
+    "max_results": 15
+  },
+  "result_count": 15,
+  "result_ids": [
+    "2002.08208v2",
+    "2305.14314v1",
+    "2312.17080v4",
+    "2402.05445v2",
+    "2403.14572v2",
+    "2410.20625v2",
+    "2411.14961v3",
+    "2506.20629v1",
+    "2509.25160v3",
+    "2512.17983v1",
+    "2602.04998v2",
+    "2604.22127v1",
+    "2606.31413v3",
+    "2607.11940v1",
+    "2608.15381v1"
+  ],
+  "temporal_filter": "none-at-snapshot-time; cutoff applied client-side"
+}
